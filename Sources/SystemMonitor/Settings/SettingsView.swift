@@ -42,6 +42,24 @@ struct SettingsView: View {
                 StatusItemsEditorView()
             }
 
+            Section("Ordem do painel") {
+                PanelSectionsEditorView()
+            }
+
+            Section {
+                Picker("Duração", selection: $settings.keepAwakeDuration) {
+                    ForEach(KeepAwakeDuration.allCases) { duration in
+                        Text(duration.label).tag(duration)
+                    }
+                }
+            } header: {
+                Text("Café (manter tela acesa)")
+            } footer: {
+                Text("Quanto tempo o botão de café (☕ na barra de menu) mantém a tela acesa antes de desligar sozinho.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("Geral") {
                 Toggle("Abrir no login", isOn: $settings.launchAtLogin)
             }

@@ -23,23 +23,8 @@ struct PanelView: View {
                 interval: settings.sampleInterval.label,
                 onOpenSettings: onOpenSettings
             )
-            CPUCardView(sample: sample, accent: accent, isCritical: isCritical, sampleInterval: settings.sampleInterval)
-            MemoryDiskView(sample: sample, isCritical: isCritical)
-            GridStatsView(sample: sample, isCritical: isCritical)
-            if settings.showProcesses && !sample.topProcesses.isEmpty {
-                ProcessListView(
-                    title: "Maiores consumos",
-                    unit: "CPU",
-                    rows: sample.topProcesses.map {
-                        ProcessListView.Row(
-                            id: $0.id,
-                            name: $0.name,
-                            value: Formatting.oneDecimalString($0.cpuPercent) + "%",
-                            fraction: min($0.cpuPercent / 100, 1)
-                        )
-                    },
-                    accent: accent
-                )
+            ForEach(settings.panelSectionOrder) { section in
+                sectionView(for: section)
             }
             PanelFooterView(
                 isCritical: isCritical,
@@ -57,5 +42,33 @@ struct PanelView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(isCritical ? DesignColor.critical.opacity(0.45) : Color.clear, lineWidth: 1)
         )
+    }
+
+    @ViewBuilder
+    private func sectionView(for section: PanelSection) -> some View {
+        switch section {
+        case .cpu:
+            CPUCardView(sample: sample, accent: accent, isCritical: isCritical, sampleInterval: settings.sampleInterval)
+        case .memoryDisk:
+            MemoryDiskView(sample: sample, isCritical: isCritical)
+        case .grid:
+            GridStatsView(sample: sample, isCritical: isCritical)
+        case .processes:
+            if settings.showProcesses && !sample.topProcesses.isEmpty {
+                ProcessListView(
+                    title: "Maiores consumos",
+                    unit: "CPU",
+                    rows: sample.topProcesses.map {
+                        ProcessListView.Row(
+                            id: $0.id,
+                            name: $0.name,
+                            value: Formatting.oneDecimalString($0.cpuPercent) + "%",
+                            fraction: min($0.cpuPercent / 100, 1)
+                        )
+                    },
+                    accent: accent
+                )
+            }
+        }
     }
 }

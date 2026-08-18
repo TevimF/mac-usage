@@ -69,16 +69,16 @@ private struct SlotRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            VStack(spacing: 0) {
+            VStack(spacing: 2) {
                 Button(action: onMoveUp) {
-                    Image(systemName: "chevron.up").font(.system(size: 9))
+                    Image(systemName: "chevron.up").font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
                 .disabled(isFirst)
                 .opacity(isFirst ? 0.3 : 1)
 
                 Button(action: onMoveDown) {
-                    Image(systemName: "chevron.down").font(.system(size: 9))
+                    Image(systemName: "chevron.down").font(.system(size: 11))
                 }
                 .buttonStyle(.plain)
                 .disabled(isLast)
@@ -86,23 +86,32 @@ private struct SlotRow: View {
             }
             .foregroundStyle(.secondary)
 
-            ForEach(slot.metrics) { metric in
-                HStack(spacing: 4) {
-                    Image(systemName: MetricIconLibrary.symbolName(for: metric))
-                    Text(metric.displayName)
-                    Button {
-                        slot.metrics.removeAll { $0 == metric }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill").font(.system(size: 10))
+            // Chips never wrap — with 4 metrics and a long-ish label this can
+            // need more width than the fixed Settings window has, so it
+            // scrolls sideways instead of SwiftUI wrapping the label text
+            // and turning the capsule into a tall, broken pill.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(slot.metrics) { metric in
+                        HStack(spacing: 4) {
+                            Image(systemName: MetricIconLibrary.symbolName(for: metric))
+                            Text(metric.displayName)
+                            Button {
+                                slot.metrics.removeAll { $0 == metric }
+                            } label: {
+                                Image(systemName: "xmark.circle.fill").font(.system(size: 10))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(slot.metrics.count <= 1)
+                            .opacity(slot.metrics.count <= 1 ? 0.3 : 1)
+                        }
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.primary.opacity(0.08)))
+                        .fixedSize()
                     }
-                    .buttonStyle(.plain)
-                    .disabled(slot.metrics.count <= 1)
-                    .opacity(slot.metrics.count <= 1 ? 0.3 : 1)
                 }
-                .font(.system(size: 12))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color.primary.opacity(0.08)))
             }
 
             if canAddMore {
@@ -115,15 +124,17 @@ private struct SlotRow: View {
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 22)
+                .fixedSize()
             }
 
-            Spacer()
+            Spacer(minLength: 8)
 
             Button(action: onRemove) {
                 Image(systemName: "trash")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .fixedSize()
         }
     }
 

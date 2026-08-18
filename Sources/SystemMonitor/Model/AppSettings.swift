@@ -41,6 +41,48 @@ enum AccentOption: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// How long a keep-awake activation lasts before switching itself back off.
+/// `.indefinite` behaves like the plain on/off toggle this started as —
+/// stays on until you click it again.
+enum KeepAwakeDuration: Double, Codable, CaseIterable, Identifiable {
+    case fifteenMinutes = 900
+    case thirtyMinutes = 1800
+    case oneHour = 3600
+    case twoHours = 7200
+    case fourHours = 14400
+    case indefinite = 0
+
+    var id: Double { rawValue }
+
+    var label: String {
+        switch self {
+        case .fifteenMinutes: return "15 min"
+        case .thirtyMinutes: return "30 min"
+        case .oneHour: return "1 h"
+        case .twoHours: return "2 h"
+        case .fourHours: return "4 h"
+        case .indefinite: return "Até desativar"
+        }
+    }
+}
+
+/// One block of the popover panel. Header and footer always stay put; these
+/// are the middle sections the user can reorder.
+enum PanelSection: String, Codable, CaseIterable, Identifiable {
+    case cpu, memoryDisk, grid, processes
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .cpu: return "CPU"
+        case .memoryDisk: return "Memória e disco"
+        case .grid: return "Rede, térmico e bateria"
+        case .processes: return "Maiores consumos"
+        }
+    }
+}
+
 private struct PersistedSettings: Codable {
     var accent: AccentOption
     var iconStyle: IconStyle
@@ -48,6 +90,12 @@ private struct PersistedSettings: Codable {
     var showProcesses: Bool
     var launchAtLogin: Bool
     var statusItemSlots: [StatusItemSlot]
+    // Optional so decoding a settings blob saved before this field existed
+    // doesn't throw and silently reset every other setting back to
+    // defaults — Codable synthesis treats a missing key on an Optional
+    // property as nil rather than a decode failure.
+    var keepAwakeDuration: KeepAwakeDuration?
+    var panelSectionOrder: [PanelSection]?
 }
 
 /// Single source of truth for user-configurable behavior. Persisted as one
@@ -67,6 +115,8 @@ final class AppSettings: ObservableObject {
         }
     }
     @Published var statusItemSlots: [StatusItemSlot] { didSet { persist() } }
+    @Published var keepAwakeDuration: KeepAwakeDuration { didSet { persist() } }
+    @Published var panelSectionOrder: [PanelSection] { didSet { persist() } }
 
     private static let defaultsKey = "com.estevaofonseca.systemmonitor.settings"
 
@@ -79,6 +129,9 @@ final class AppSettings: ObservableObject {
             showProcesses = decoded.showProcesses
             launchAtLogin = decoded.launchAtLogin
             statusItemSlots = decoded.statusItemSlots
+            keepAwakeDuration = decoded.keepAwakeDuration ?? .thirtyMinutes
+            let storedOrder = decoded.panelSectionOrder ?? PanelSection.allCases
+            panelSectionOrder = storedOrder + PanelSection.allCases.filter { !storedOrder.contains($0) }
         } else {
             accent = .cyan
             iconStyle = .capsule
@@ -86,6 +139,8 @@ final class AppSettings: ObservableObject {
             showProcesses = true
             launchAtLogin = false
             statusItemSlots = [StatusItemSlot(metrics: [.cpu])]
+            keepAwakeDuration = .thirtyMinutes
+            panelSectionOrder = PanelSection.allCases
         }
         // didSet doesn't fire for this initializer's own assignment above,
         // so a persisted `true` is never pushed to SMAppService just by
@@ -102,7 +157,9 @@ final class AppSettings: ObservableObject {
             sampleInterval: sampleInterval,
             showProcesses: showProcesses,
             launchAtLogin: launchAtLogin,
-            statusItemSlots: statusItemSlots
+            statusItemSlots: statusItemSlots,
+            keepAwakeDuration: keepAwakeDuration,
+            panelSectionOrder: panelSectionOrder
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         UserDefaults.standard.set(data, forKey: Self.defaultsKey)
