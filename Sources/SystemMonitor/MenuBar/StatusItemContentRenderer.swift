@@ -41,7 +41,7 @@ enum StatusItemContentRenderer {
         if metrics.count == 1, !first.isDualValue {
             return renderSingle(metric: first, sample: sample, style: style, accent: accent, isDark: isDark)
         }
-        return renderRow(metrics: metrics, sample: sample, isDark: isDark)
+        return renderRow(metrics: metrics, sample: sample, accent: accent, isDark: isDark)
     }
 
     // MARK: - Lone single-value metric (styles A/B/C)
@@ -71,7 +71,7 @@ enum StatusItemContentRenderer {
         return NSImage(size: size, flipped: false) { rect in
             var x = sidePadding
             if showIcon {
-                let iconColor = iconTintColor(metric: metric, sample: sample, base: textColor)
+                let iconColor = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor)
                 let tinted = icon.tinted(with: iconColor)
                 let y = (rect.height - icon.size.height) / 2
                 tinted.draw(at: CGPoint(x: x, y: y), from: .zero, operation: .sourceOver, fraction: 1)
@@ -97,27 +97,35 @@ enum StatusItemContentRenderer {
     private struct Chip {
         let icon: NSImage
         let text: String
+        let tint: NSColor
     }
 
-    private static func renderRow(metrics: [MetricKind], sample: MetricSample, isDark: Bool) -> NSImage {
+    private static func renderRow(metrics: [MetricKind], sample: MetricSample, accent: NSColor, isDark: Bool) -> NSImage {
         let textColor = foregroundColor(isDark: isDark, isCritical: sample.isCritical)
         let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
         let textAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
 
         // Dual-value metrics contribute two chips (down, up) with no divider
         // between them, so they stay visually grouped as one reading; a
-        // divider only separates different metrics.
+        // divider only separates different metrics. Icons carry the same
+        // per-metric color the panel already uses (CPU gets the user's
+        // accent, RAM/swap indigo, disk/thermal orange, network green) so
+        // several metrics in one row stay tellable apart at a glance, and so
+        // the accent color picker actually does something visible even when
+        // CPU isn't rendered as a lone sparkline.
         let groups: [[Chip]] = metrics.map { metric in
+            let tint = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor)
             if metric.isDualValue {
                 let (down, up) = dualValues(for: metric, sample: sample)
                 return [
-                    Chip(icon: MetricIconLibrary.image(named: "arrow.down", pointSize: smallIconPointSize), text: Formatting.mbps(down)),
-                    Chip(icon: MetricIconLibrary.image(named: "arrow.up", pointSize: smallIconPointSize), text: Formatting.mbps(up))
+                    Chip(icon: MetricIconLibrary.image(named: "arrow.down", pointSize: smallIconPointSize), text: Formatting.mbps(down), tint: tint),
+                    Chip(icon: MetricIconLibrary.image(named: "arrow.up", pointSize: smallIconPointSize), text: Formatting.mbps(up), tint: tint)
                 ]
             }
             return [Chip(
                 icon: MetricIconLibrary.image(for: metric, pointSize: smallIconPointSize, sample: sample),
-                text: valueString(for: metric, sample: sample)
+                text: valueString(for: metric, sample: sample),
+                tint: tint
             )]
         }
 
@@ -141,7 +149,7 @@ enum StatusItemContentRenderer {
             var x = sidePadding
             for (groupIndex, group) in groups.enumerated() {
                 for (chipIndex, chip) in group.enumerated() {
-                    let tinted = chip.icon.tinted(with: textColor)
+                    let tinted = chip.icon.tinted(with: chip.tint)
                     let iconY = (rect.height - tinted.size.height) / 2
                     tinted.draw(at: CGPoint(x: x, y: iconY), from: .zero, operation: .sourceOver, fraction: 1)
                     x += smallIconPointSize + chipGap
@@ -199,15 +207,28 @@ enum StatusItemContentRenderer {
         return isDark ? NSColor(white: 1, alpha: 0.94) : NSColor(white: 0.11, alpha: 1)
     }
 
-    private static func iconTintColor(metric: MetricKind, sample: MetricSample, base: NSColor) -> NSColor {
-        if metric == .thermal {
+    /// Same per-metric palette the panel uses (see DesignColor): CPU takes
+    /// the user's chosen accent, everything else has a fixed semantic color.
+    /// Critical state overrides all of it with red — an alert should be
+    /// unmissable, not just the one metric that tripped it.
+    private static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor) -> NSColor {
+        let critical = NSColor(red: 1, green: 0.29, blue: 0.23, alpha: 1) // #FF453A
+        let warn = NSColor(red: 1, green: 0.62, blue: 0.04, alpha: 1) // #FF9F0A
+        guard !sample.isCritical else { return critical }
+
+        switch metric {
+        case .cpu: return accent
+        case .ram, .swap: return NSColor(red: 0.369, green: 0.361, blue: 0.902, alpha: 1) // #5E5CE6
+        case .disk, .diskIO: return warn
+        case .network: return NSColor(red: 0.188, green: 0.820, blue: 0.345, alpha: 1) // #30D158
+        case .thermal:
             switch sample.thermalState {
             case .nominal, .fair: return base
-            case .serious: return NSColor(red: 1, green: 0.62, blue: 0.04, alpha: 1) // #FF9F0A
-            case .critical: return NSColor(red: 1, green: 0.29, blue: 0.23, alpha: 1) // #FF453A
+            case .serious: return warn
+            case .critical: return critical
             }
+        case .battery, .gpu: return base
         }
-        return base
     }
 }
 
