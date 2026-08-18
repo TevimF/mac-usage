@@ -2,11 +2,21 @@ import Foundation
 import Combine
 
 enum IconStyle: String, Codable, CaseIterable, Identifiable {
+    // Raw values are what old installs persisted — they stay Portuguese
+    // even though they read like labels; display goes through `label`.
     case numeric = "Numérico"
     case sparkline = "Sparkline"
     case capsule = "Cápsula de vidro"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .numeric: return L10n.t("Numérico", "Numeric")
+        case .sparkline: return "Sparkline"
+        case .capsule: return L10n.t("Cápsula de vidro", "Glass capsule")
+        }
+    }
 }
 
 enum SampleInterval: Double, Codable, CaseIterable, Identifiable {
@@ -24,13 +34,6 @@ enum SampleInterval: Double, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// A group of 1–2 metrics rendered together as a single NSStatusItem,
-/// per the design's "no máximo duas métricas por item" rule.
-struct StatusItemSlot: Codable, Identifiable, Equatable {
-    var id: UUID = UUID()
-    var metrics: [MetricKind]
-}
-
 /// The four accent options from the design spec's "Aparência" section.
 enum AccentOption: String, Codable, CaseIterable, Identifiable {
     case cyan = "#64D2FF"
@@ -39,6 +42,15 @@ enum AccentOption: String, Codable, CaseIterable, Identifiable {
     case purple = "#BF5AF2"
 
     var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .cyan: return L10n.t("Ciano", "Cyan")
+        case .blue: return L10n.t("Azul", "Blue")
+        case .green: return L10n.t("Verde", "Green")
+        case .purple: return L10n.t("Roxo", "Purple")
+        }
+    }
 }
 
 /// How long a keep-awake activation lasts before switching itself back off.
@@ -61,7 +73,7 @@ enum KeepAwakeDuration: Double, Codable, CaseIterable, Identifiable {
         case .oneHour: return "1 h"
         case .twoHours: return "2 h"
         case .fourHours: return "4 h"
-        case .indefinite: return "Até desativar"
+        case .indefinite: return L10n.t("Até desativar", "Until turned off")
         }
     }
 }
@@ -72,7 +84,8 @@ enum IconColorMode: String, Codable, CaseIterable, Identifiable {
     /// only the global critical state (CPU stuck above 90%) overrides it.
     case neutral
     /// One fixed color per metric (CPU takes the accent, RAM/swap indigo,
-    /// disk orange, network green) — always on, regardless of the reading.
+    /// disk/thermal orange, network green) — always on, regardless of the
+    /// reading.
     case perMetric
     /// Neutral at rest, sliding toward orange then red as that metric's own
     /// value climbs — RAM at 40% is white, RAM at 95% is red. Thermal keeps
@@ -84,28 +97,37 @@ enum IconColorMode: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .neutral: return "Neutro"
-        case .perMetric: return "Uma cor por métrica"
-        case .byValue: return "Muda com o uso"
+        case .neutral: return L10n.t("Neutro", "Neutral")
+        case .perMetric: return L10n.t("Uma cor por métrica", "One color per metric")
+        case .byValue: return L10n.t("Muda com o uso", "Changes with usage")
         }
     }
 }
 
-/// One block of the popover panel. Header and footer always stay put; these
-/// are the middle sections the user can reorder.
+/// One block of the popover panel. Header, keep-awake and footer always
+/// stay put; these are the middle sections the user can reorder.
 enum PanelSection: String, Codable, CaseIterable, Identifiable {
-    case cpu, memoryDisk, grid, processes
+    case cpu, grid, processes
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .cpu: return "CPU"
-        case .memoryDisk: return "Memória e disco"
-        case .grid: return "Rede, térmico e bateria"
-        case .processes: return "Maiores consumos"
+        case .grid: return L10n.t("Métricas", "Metrics")
+        case .processes: return L10n.t("Maiores consumos", "Top consumers")
         }
     }
+}
+
+/// Migration-only shape of the old "status item slot" model (one
+/// NSStatusItem per slot, up to 4 metrics each). Superseded by
+/// `metricOrder` — a single reorderable list where only the first two
+/// entries show in the menu bar and the rest live in the panel. Kept here
+/// so existing installs decode instead of silently resetting every other
+/// setting; never written back once `metricOrder` exists.
+private struct LegacyStatusItemSlot: Codable {
+    var metrics: [MetricKind]
 }
 
 private struct PersistedSettings: Codable {
@@ -114,14 +136,20 @@ private struct PersistedSettings: Codable {
     var sampleInterval: SampleInterval
     var showProcesses: Bool
     var launchAtLogin: Bool
-    var statusItemSlots: [StatusItemSlot]
     // Optional so decoding a settings blob saved before this field existed
     // doesn't throw and silently reset every other setting back to
     // defaults — Codable synthesis treats a missing key on an Optional
     // property as nil rather than a decode failure.
     var keepAwakeDuration: KeepAwakeDuration?
-    var panelSectionOrder: [PanelSection]?
+    // Raw strings, not [PanelSection]: a stored section that no longer
+    // exists (e.g. "memoryDisk", merged into the grid) must degrade to
+    // "ignore that entry", not fail the decode and reset every setting.
+    var panelSectionOrder: [String]?
     var iconColorMode: IconColorMode?
+    var metricOrder: [MetricKind]?
+    var barMetricCount: Int?
+    var language: AppLanguage?
+    var statusItemSlots: [LegacyStatusItemSlot]?
 }
 
 /// Single source of truth for user-configurable behavior. Persisted as one
@@ -140,10 +168,21 @@ final class AppSettings: ObservableObject {
             LoginItem.setEnabled(launchAtLogin)
         }
     }
-    @Published var statusItemSlots: [StatusItemSlot] { didSet { persist() } }
     @Published var keepAwakeDuration: KeepAwakeDuration { didSet { persist() } }
     @Published var panelSectionOrder: [PanelSection] { didSet { persist() } }
     @Published var iconColorMode: IconColorMode { didSet { persist() } }
+    /// Every available metric, in priority order. Only the front slice —
+    /// `barMetricCount` entries — shows in the menu bar (as one combined
+    /// status item); the rest are panel-only. Reordering here is what the
+    /// drag list in Settings edits.
+    @Published var metricOrder: [MetricKind] { didSet { persist() } }
+    /// How many entries from the front of `metricOrder` fit in the bar.
+    /// Kept as a setting (not a fixed 2) because at 1 the bar item is a
+    /// single non-dual-value metric, which is the only case `iconStyle`
+    /// (numeric/sparkline/capsule) has any effect on — pinning this to 2
+    /// would make that whole setting permanently dead.
+    @Published var barMetricCount: Int { didSet { persist() } }
+    @Published var language: AppLanguage { didSet { persist() } }
 
     private static let defaultsKey = "com.estevaofonseca.systemmonitor.settings"
 
@@ -155,21 +194,24 @@ final class AppSettings: ObservableObject {
             sampleInterval = decoded.sampleInterval
             showProcesses = decoded.showProcesses
             launchAtLogin = decoded.launchAtLogin
-            statusItemSlots = decoded.statusItemSlots
             keepAwakeDuration = decoded.keepAwakeDuration ?? .thirtyMinutes
-            let storedOrder = decoded.panelSectionOrder ?? PanelSection.allCases
-            panelSectionOrder = storedOrder + PanelSection.allCases.filter { !storedOrder.contains($0) }
+            panelSectionOrder = Self.resolveSectionOrder(decoded.panelSectionOrder)
             iconColorMode = decoded.iconColorMode ?? .neutral
+            metricOrder = Self.resolveMetricOrder(decoded: decoded)
+            barMetricCount = Self.resolveBarMetricCount(decoded: decoded)
+            language = decoded.language ?? .portuguese
         } else {
             accent = .cyan
             iconStyle = .capsule
             sampleInterval = .twoSeconds
             showProcesses = true
             launchAtLogin = false
-            statusItemSlots = [StatusItemSlot(metrics: [.cpu])]
             keepAwakeDuration = .thirtyMinutes
             panelSectionOrder = PanelSection.allCases
             iconColorMode = .neutral
+            metricOrder = MetricKind.allCases.filter(\.isAvailable)
+            barMetricCount = 1
+            language = .portuguese
         }
         // didSet doesn't fire for this initializer's own assignment above,
         // so a persisted `true` is never pushed to SMAppService just by
@@ -179,6 +221,52 @@ final class AppSettings: ObservableObject {
         LoginItem.setEnabled(launchAtLogin)
     }
 
+    /// Maps stored section names to today's sections — the old
+    /// "memoryDisk" (its tiles merged into the grid) folds into `.grid`,
+    /// anything unknown is dropped, and any section missing from the
+    /// stored order is appended so new sections always show up.
+    private static func resolveSectionOrder(_ stored: [String]?) -> [PanelSection] {
+        let mapped = (stored ?? []).compactMap { raw -> PanelSection? in
+            raw == "memoryDisk" ? .grid : PanelSection(rawValue: raw)
+        }
+        var seen = Set<PanelSection>()
+        let unique = mapped.filter { seen.insert($0).inserted }
+        return unique + PanelSection.allCases.filter { !unique.contains($0) }
+    }
+
+    /// Prefers the current `metricOrder` field; falls back to flattening
+    /// the old per-slot model; backfills either with any available metric
+    /// missing from the stored order (e.g. one added in a later version).
+    private static func resolveMetricOrder(decoded: PersistedSettings) -> [MetricKind] {
+        let available = MetricKind.allCases.filter(\.isAvailable)
+        if let stored = decoded.metricOrder {
+            let known = stored.filter(available.contains)
+            return known + available.filter { !known.contains($0) }
+        }
+        if let legacySlots = decoded.statusItemSlots {
+            var seen = Set<MetricKind>()
+            let flattened = legacySlots.flatMap(\.metrics)
+                .filter(available.contains)
+                .filter { seen.insert($0).inserted }
+            return flattened + available.filter { !flattened.contains($0) }
+        }
+        return available
+    }
+
+    /// Prefers the current `barMetricCount`; falls back to however many
+    /// metrics were in the first legacy slot (clamped to 1–2, since that's
+    /// all a single combined item can hold); defaults to 1 — the same
+    /// single-metric bar a fresh install always started with.
+    private static func resolveBarMetricCount(decoded: PersistedSettings) -> Int {
+        if let stored = decoded.barMetricCount {
+            return min(max(stored, 1), 2)
+        }
+        if let firstSlotCount = decoded.statusItemSlots?.first?.metrics.count {
+            return min(max(firstSlotCount, 1), 2)
+        }
+        return 1
+    }
+
     private func persist() {
         let snapshot = PersistedSettings(
             accent: accent,
@@ -186,10 +274,13 @@ final class AppSettings: ObservableObject {
             sampleInterval: sampleInterval,
             showProcesses: showProcesses,
             launchAtLogin: launchAtLogin,
-            statusItemSlots: statusItemSlots,
             keepAwakeDuration: keepAwakeDuration,
-            panelSectionOrder: panelSectionOrder,
-            iconColorMode: iconColorMode
+            panelSectionOrder: panelSectionOrder.map(\.rawValue),
+            iconColorMode: iconColorMode,
+            metricOrder: metricOrder,
+            barMetricCount: barMetricCount,
+            language: language,
+            statusItemSlots: nil
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         UserDefaults.standard.set(data, forKey: Self.defaultsKey)

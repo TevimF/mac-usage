@@ -2,45 +2,48 @@ import SwiftUI
 
 /// Reorders the popover panel's middle sections (CPU, memory/disk, network/
 /// thermal/battery, processes). Header and footer aren't listed — they
-/// always stay at the top and bottom.
+/// always stay at the top and bottom. Drag any row to move it — `List` on
+/// macOS enables that straight from `.onMove`, no explicit "Edit" mode or
+/// custom drag handling needed.
 struct PanelSectionsEditorView: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(Array(settings.panelSectionOrder.enumerated()), id: \.element) { index, section in
-                HStack(spacing: 8) {
-                    VStack(spacing: 2) {
-                        Button(action: { move(from: index, by: -1) }) {
-                            Image(systemName: "chevron.up").font(.system(size: 11))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(index == 0)
-                        .opacity(index == 0 ? 0.3 : 1)
-
-                        Button(action: { move(from: index, by: 1) }) {
-                            Image(systemName: "chevron.down").font(.system(size: 11))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(index == settings.panelSectionOrder.count - 1)
-                        .opacity(index == settings.panelSectionOrder.count - 1 ? 0.3 : 1)
-                    }
-                    .foregroundStyle(.secondary)
-
-                    Text(section.displayName)
-                        .font(.system(size: 12.5))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Capsule().fill(Color.primary.opacity(0.06)))
-                }
+        List {
+            ForEach(settings.panelSectionOrder) { section in
+                row(for: section)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+            }
+            .onMove { indices, destination in
+                settings.panelSectionOrder.move(fromOffsets: indices, toOffset: destination)
             }
         }
+        .listStyle(.plain)
+        .scrollDisabled(true)
     }
 
-    private func move(from index: Int, by offset: Int) {
-        let target = index + offset
-        guard settings.panelSectionOrder.indices.contains(index), settings.panelSectionOrder.indices.contains(target) else { return }
-        settings.panelSectionOrder.swapAt(index, target)
+    private func row(for section: PanelSection) -> some View {
+        HStack(spacing: 10) {
+            DragHandle()
+
+            Text("\(position(of: section))")
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 12, alignment: .trailing)
+
+            Text(section.displayName)
+                .font(.system(size: 12.5))
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .background(RoundedRectangle(cornerRadius: 7).fill(Color.primary.opacity(0.05)))
+    }
+
+    private func position(of section: PanelSection) -> Int {
+        (settings.panelSectionOrder.firstIndex(of: section) ?? 0) + 1
     }
 }

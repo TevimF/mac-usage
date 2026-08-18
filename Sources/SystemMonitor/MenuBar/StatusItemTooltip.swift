@@ -7,8 +7,8 @@ import Foundation
 /// expect from menu bar items, and it doesn't fight the click that opens the
 /// real panel.
 enum StatusItemTooltip {
-    static func text(for slot: StatusItemSlot, sample: MetricSample) -> String {
-        let blocks = slot.metrics.filter(\.isAvailable).map { lines(for: $0, sample: sample).joined(separator: "\n") }
+    static func text(for metrics: [MetricKind], sample: MetricSample) -> String {
+        let blocks = metrics.filter(\.isAvailable).map { lines(for: $0, sample: sample).joined(separator: "\n") }
         return blocks.joined(separator: "\n\n")
     }
 
@@ -17,59 +17,63 @@ enum StatusItemTooltip {
         case .cpu:
             var lines = [
                 "CPU — \(Formatting.percent(sample.cpuPercent))%",
-                "usuário \(Formatting.percent(sample.cpuUserPercent))% · sistema \(Formatting.percent(sample.cpuSystemPercent))%",
-                "\(sample.cpuModel) · \(sample.cpuCoreCount) núcleos"
+                "\(L10n.t("usuário", "user")) \(Formatting.percent(sample.cpuUserPercent))% · \(L10n.t("sistema", "system")) \(Formatting.percent(sample.cpuSystemPercent))%",
+                "\(sample.cpuModel) · \(sample.cpuCoreCount) \(L10n.t("núcleos", "cores"))"
             ]
             if let top = sample.topProcesses.first {
-                lines.append("maior consumo: \(top.name) \(Formatting.oneDecimalString(top.cpuPercent))%")
+                lines.append("\(L10n.t("maior consumo", "top consumer")): \(top.name) \(Formatting.oneDecimalString(top.cpuPercent))%")
             }
             return lines
 
         case .ram:
             var lines = [
-                "Memória — \(Formatting.gb(sample.memoryUsedGB)) / \(Formatting.gb(sample.memoryTotalGB)) GB (\(Formatting.percent(sample.memoryFraction * 100))%)",
-                "ativa \(Formatting.gb(sample.memoryActiveGB)) · reservada \(Formatting.gb(sample.memoryWiredGB)) · comprimida \(Formatting.gb(sample.memoryCompressedGB)) GB"
+                "\(L10n.t("Memória", "Memory")) — \(Formatting.gb(sample.memoryUsedGB)) / \(Formatting.gb(sample.memoryTotalGB)) GB (\(Formatting.percent(sample.memoryFraction * 100))%)",
+                "\(L10n.t("ativa", "active")) \(Formatting.gb(sample.memoryActiveGB)) · \(L10n.t("reservada", "wired")) \(Formatting.gb(sample.memoryWiredGB)) · \(L10n.t("comprimida", "compressed")) \(Formatting.gb(sample.memoryCompressedGB)) GB"
             ]
             if let top = sample.topMemoryProcesses.first {
-                lines.append("maior consumo: \(top.name) \(Formatting.memory(mb: top.memoryMB))")
+                lines.append("\(L10n.t("maior consumo", "top consumer")): \(top.name) \(Formatting.memory(mb: top.memoryMB))")
             }
             return lines
 
         case .swap:
-            guard sample.swapTotalGB > 0 else { return ["Swap — não usado"] }
+            guard sample.swapTotalGB > 0 else { return ["Swap — \(L10n.t("não usado", "not used"))"] }
             return [
                 "Swap — \(Formatting.gb(sample.swapUsedGB)) / \(Formatting.gb(sample.swapTotalGB)) GB",
-                sample.swapUsedGB > 1 ? "paginando para o disco" : "sem pressão de memória relevante"
+                sample.swapUsedGB > 1
+                    ? L10n.t("paginando para o disco", "paging to disk")
+                    : L10n.t("sem pressão de memória relevante", "no relevant memory pressure")
             ]
 
         case .disk:
             return [
-                "Disco — \(Formatting.gb(sample.diskUsedGB)) / \(Formatting.gb(sample.diskTotalGB)) GB",
-                "livre \(Formatting.gb(sample.diskTotalGB - sample.diskUsedGB)) GB (\(Formatting.percent((1 - sample.diskFraction) * 100))%)"
+                "\(L10n.t("Disco", "Disk")) — \(Formatting.gb(sample.diskUsedGB)) / \(Formatting.gb(sample.diskTotalGB)) GB",
+                "\(L10n.t("livre", "free")) \(Formatting.gb(sample.diskTotalGB - sample.diskUsedGB)) GB (\(Formatting.percent((1 - sample.diskFraction) * 100))%)"
             ]
 
         case .diskIO:
             return [
-                "Disco (velocidade)",
+                L10n.t("Disco (velocidade)", "Disk (throughput)"),
                 "↓ \(Formatting.mbps(sample.diskReadRate)) MB/s · ↑ \(Formatting.mbps(sample.diskWriteRate)) MB/s"
             ]
 
         case .network:
             return [
-                "Rede",
+                L10n.t("Rede", "Network"),
                 "↓ \(Formatting.mbps(sample.networkDownRate)) MB/s · ↑ \(Formatting.mbps(sample.networkUpRate)) MB/s"
             ]
 
         case .thermal:
-            return ["Térmico — \(sample.thermalState.label)"]
+            return ["\(L10n.t("Térmico", "Thermal")) — \(sample.thermalState.label)"]
 
         case .battery:
-            guard let percent = sample.batteryPercent else { return ["Bateria — sem bateria"] }
-            var lines = ["Bateria — \(percent)%"]
+            guard let percent = sample.batteryPercent else {
+                return ["\(L10n.t("Bateria", "Battery")) — \(L10n.t("sem bateria", "no battery"))"]
+            }
+            var lines = ["\(L10n.t("Bateria", "Battery")) — \(percent)%"]
             if sample.isCharging {
-                lines.append("carregando")
+                lines.append(L10n.t("carregando", "charging"))
             } else if let minutes = sample.batteryTimeRemainingMinutes, minutes > 0 {
-                lines.append("\(Formatting.duration(minutes: minutes)) restantes")
+                lines.append(L10n.t("\(Formatting.duration(minutes: minutes)) restantes", "\(Formatting.duration(minutes: minutes)) remaining"))
             }
             return lines
 

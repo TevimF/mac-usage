@@ -34,14 +34,17 @@ enum StatusItemContentRenderer {
     private static let gap: CGFloat = 4
     private static let chipGap: CGFloat = 3
 
-    static func render(slot: StatusItemSlot, sample: MetricSample, style: IconStyle, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
-        let metrics = slot.metrics.filter { $0.isAvailable }
-        guard let first = metrics.first else { return blank() }
+    /// `metrics` is the top slice of `AppSettings.metricOrder` that fits in
+    /// the bar (today, the first two) — this renders whatever it's given as
+    /// one combined status item, it doesn't decide how many that should be.
+    static func render(metrics: [MetricKind], sample: MetricSample, style: IconStyle, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
+        let available = metrics.filter { $0.isAvailable }
+        guard let first = available.first else { return blank() }
 
-        if metrics.count == 1, !first.isDualValue {
+        if available.count == 1, !first.isDualValue {
             return renderSingle(metric: first, sample: sample, style: style, accent: accent, colorMode: colorMode, isDark: isDark)
         }
-        return renderRow(metrics: metrics, sample: sample, accent: accent, colorMode: colorMode, isDark: isDark)
+        return renderRow(metrics: available, sample: sample, accent: accent, colorMode: colorMode, isDark: isDark)
     }
 
     // MARK: - Lone single-value metric (styles A/B/C)
@@ -57,13 +60,14 @@ enum StatusItemContentRenderer {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
         let textAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
         let textSize = showText ? valueText.size(withAttributes: textAttrs) : .zero
+        let textSlotWidth = showText ? textSlotWidth(for: metric, actual: textSize.width, attributes: textAttrs) : 0
 
         var width: CGFloat = sidePadding
         if showIcon { width += iconPointSize }
         if showIcon && showSparkline { width += gap }
         if showSparkline { width += sparklineSize.width }
         if (showIcon || showSparkline) && showText { width += gap }
-        width += showText ? textSize.width : 0
+        width += textSlotWidth
         width += sidePadding
         width = max(width, 20)
 
@@ -86,7 +90,9 @@ enum StatusItemContentRenderer {
             if showText {
                 if showIcon || showSparkline { x += gap }
                 let y = (rect.height - textSize.height) / 2
-                valueText.draw(at: CGPoint(x: x, y: y), withAttributes: textAttrs)
+                // Right-aligned inside the reserved slot, so the digits
+                // grow leftward into the slack instead of widening the item.
+                valueText.draw(at: CGPoint(x: x + textSlotWidth - textSize.width, y: y), withAttributes: textAttrs)
             }
             return true
         }
@@ -98,6 +104,10 @@ enum StatusItemContentRenderer {
         let icon: NSImage
         let text: String
         let tint: NSColor
+        /// Reserved width for the value text — sized to the metric's widest
+        /// plausible reading, not to today's digits, so the item's total
+        /// width holds still between ticks (see `reservedValueTemplate`).
+        let textSlotWidth: CGFloat
     }
 
     private static func renderRow(metrics: [MetricKind], sample: MetricSample, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
@@ -108,24 +118,30 @@ enum StatusItemContentRenderer {
         // Dual-value metrics contribute two chips (down, up) with no divider
         // between them, so they stay visually grouped as one reading; a
         // divider only separates different metrics.
+        func chip(icon: NSImage, text: String, tint: NSColor, metric: MetricKind) -> Chip {
+            let slot = text.isEmpty ? 0 : textSlotWidth(for: metric, actual: text.size(withAttributes: textAttrs).width, attributes: textAttrs)
+            return Chip(icon: icon, text: text, tint: tint, textSlotWidth: slot)
+        }
+
         let groups: [[Chip]] = metrics.map { metric in
             let tint = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor, colorMode: colorMode)
             if metric.isDualValue {
                 let (down, up) = dualValues(for: metric, sample: sample)
                 return [
-                    Chip(icon: MetricIconLibrary.image(named: "arrow.down", pointSize: smallIconPointSize), text: Formatting.mbps(down), tint: tint),
-                    Chip(icon: MetricIconLibrary.image(named: "arrow.up", pointSize: smallIconPointSize), text: Formatting.mbps(up), tint: tint)
+                    chip(icon: MetricIconLibrary.image(named: "arrow.down", pointSize: smallIconPointSize), text: Formatting.mbps(down), tint: tint, metric: metric),
+                    chip(icon: MetricIconLibrary.image(named: "arrow.up", pointSize: smallIconPointSize), text: Formatting.mbps(up), tint: tint, metric: metric)
                 ]
             }
-            return [Chip(
+            return [chip(
                 icon: MetricIconLibrary.image(for: metric, pointSize: smallIconPointSize, sample: sample),
                 text: valueString(for: metric, sample: sample),
-                tint: tint
+                tint: tint,
+                metric: metric
             )]
         }
 
         func chipWidth(_ chip: Chip) -> CGFloat {
-            smallIconPointSize + chipGap + chip.text.size(withAttributes: textAttrs).width
+            smallIconPointSize + chipGap + chip.textSlotWidth
         }
 
         let dividerWidth: CGFloat = 1
@@ -151,8 +167,8 @@ enum StatusItemContentRenderer {
 
                     let textSize = chip.text.size(withAttributes: textAttrs)
                     let textY = (rect.height - textSize.height) / 2
-                    chip.text.draw(at: CGPoint(x: x, y: textY), withAttributes: textAttrs)
-                    x += textSize.width
+                    chip.text.draw(at: CGPoint(x: x + chip.textSlotWidth - textSize.width, y: textY), withAttributes: textAttrs)
+                    x += chip.textSlotWidth
                     if chipIndex < group.count - 1 { x += chipGap }
                 }
                 if groupIndex < groups.count - 1 {
@@ -170,6 +186,24 @@ enum StatusItemContentRenderer {
 
     private static func blank() -> NSImage {
         NSImage(size: CGSize(width: 1, height: contentHeight))
+    }
+
+    /// The widest value this metric normally shows. The value text is drawn
+    /// right-aligned inside a slot this wide, so the item's width doesn't
+    /// wobble as digits come and go — the panel is an NSPopover anchored to
+    /// this button, and a width change mid-view slides it around on screen.
+    private static func reservedValueTemplate(for metric: MetricKind) -> String {
+        switch metric {
+        case .cpu, .ram, .swap, .disk, .battery: return "100%"
+        // Throughput has no ceiling; "88,8" covers the everyday range and a
+        // rare >100 MB/s burst just widens the item until it passes.
+        case .network, .diskIO: return "88,8"
+        case .thermal, .gpu: return ""
+        }
+    }
+
+    private static func textSlotWidth(for metric: MetricKind, actual: CGFloat, attributes: [NSAttributedString.Key: Any]) -> CGFloat {
+        max(actual, reservedValueTemplate(for: metric).size(withAttributes: attributes).width)
     }
 
     /// Down-value / up-value pair for whichever dual-value metric is being
@@ -198,7 +232,7 @@ enum StatusItemContentRenderer {
     }
 
     private static func foregroundColor(isDark: Bool, isCritical: Bool) -> NSColor {
-        if isCritical { return NSColor(red: 1, green: 0.29, blue: 0.23, alpha: 1) } // #FF453A
+        if isCritical { return criticalColor }
         return isDark ? NSColor(white: 1, alpha: 0.94) : NSColor(white: 0.11, alpha: 1)
     }
 
@@ -211,30 +245,36 @@ enum StatusItemContentRenderer {
     private static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor, colorMode: IconColorMode) -> NSColor {
         guard !sample.isCritical else { return criticalColor }
 
-        if metric == .thermal {
-            switch sample.thermalState {
-            case .nominal, .fair: return base
-            case .serious: return warnColor
-            case .critical: return criticalColor
-            }
-        }
-
         switch colorMode {
         case .neutral:
             return base
 
         case .perMetric:
             // Same palette the panel uses (see DesignColor): CPU takes the
-            // user's chosen accent, everything else has a fixed color.
+            // user's chosen accent, disk and thermal share the warn orange
+            // (DesignColor.diskThermalWarn on the panel side), everything
+            // else has a fixed color.
             switch metric {
             case .cpu: return accent
             case .ram, .swap: return NSColor(red: 0.369, green: 0.361, blue: 0.902, alpha: 1) // #5E5CE6
-            case .disk, .diskIO: return warnColor
+            case .disk, .diskIO, .thermal: return warnColor
             case .network: return NSColor(red: 0.188, green: 0.820, blue: 0.345, alpha: 1) // #30D158
-            case .thermal, .battery, .gpu: return base
+            case .battery, .gpu: return base
             }
 
         case .byValue:
+            // Thermal has no 0–100 "load" to slide a gradient across, so it
+            // keeps its own state-based reading here instead: nominal/fair
+            // reads as neutral, serious as warn, critical as red — the one
+            // metric where "changes with usage" means thermal state, not a
+            // fraction.
+            if metric == .thermal {
+                switch sample.thermalState {
+                case .nominal, .fair: return base
+                case .serious: return warnColor
+                case .critical: return criticalColor
+                }
+            }
             guard let fraction = loadFraction(for: metric, sample: sample) else { return base }
             return valueTint(fraction: fraction, base: base)
         }

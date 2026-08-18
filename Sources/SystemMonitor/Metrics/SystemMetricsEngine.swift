@@ -29,10 +29,17 @@ final class SystemMetricsEngine: ObservableObject {
     // collections. A dedicated serial queue guarantees ticks never overlap.
     private let timerQueue = DispatchQueue(label: "com.estevaofonseca.systemmonitor.metrics-timer", qos: .utility)
 
+    // Owned by the timer queue, like the samplers' internal state — tick()
+    // reading the @Published `sample` (written on main) for the previous
+    // history was a cross-thread read of a Swift array.
+    private var cpuHistory: [Double] = []
     private var criticalStreak = 0
     private let criticalThreshold = 90.0
     private let criticalStreakNeeded = 3
     private let historyLimit = 30
+    // Snapshot of settings.showProcesses for tick() to read on the timer
+    // queue; the @Published property itself belongs to the main thread.
+    private var includeProcesses: Bool
 
     var isPanelOpen = false {
         didSet {
@@ -42,17 +49,30 @@ final class SystemMetricsEngine: ObservableObject {
     }
 
     private init() {
+        includeProcesses = settings.showProcesses
+
         settings.$sampleInterval
             .dropFirst()
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.rescheduleTimer(fireImmediately: false) }
             .store(in: &cancellables)
         settings.$showProcesses
             .dropFirst()
-            .sink { [weak self] _ in self?.tick() }
+            .sink { [weak self] show in
+                guard let self else { return }
+                // Hop to the timer queue: tick() mutates the samplers'
+                // internal state, which is only ever touched there.
+                self.timerQueue.async {
+                    self.includeProcesses = show
+                    self.tick()
+                }
+            }
             .store(in: &cancellables)
 
-        rescheduleTimer(fireImmediately: false)
-        tick()
+        // fireImmediately gives the first sample right away, on the timer
+        // queue — calling tick() directly here would run it on main,
+        // racing the first scheduled firing.
+        rescheduleTimer(fireImmediately: true)
     }
 
     private func rescheduleTimer(fireImmediately: Bool) {
@@ -74,7 +94,7 @@ final class SystemMetricsEngine: ObservableObject {
         let network = networkSampler.sample()
         let thermal = thermalSampler.sample()
         let battery = batterySampler.sample()
-        let processes = settings.showProcesses
+        let processes = includeProcesses
             ? processSampler.sample(limit: 4)
             : ProcessSampler.Result(byCPU: [], byMemory: [])
 
@@ -84,11 +104,16 @@ final class SystemMetricsEngine: ObservableObject {
             criticalStreak = 0
         }
 
+        cpuHistory.append(cpu.totalPercent)
+        if cpuHistory.count > historyLimit {
+            cpuHistory.removeFirst(cpuHistory.count - historyLimit)
+        }
+
         var next = MetricSample()
         next.cpuPercent = cpu.totalPercent
         next.cpuUserPercent = cpu.userPercent
         next.cpuSystemPercent = cpu.systemPercent
-        next.cpuHistory = appending(cpu.totalPercent, to: sample.cpuHistory)
+        next.cpuHistory = cpuHistory
         next.cpuModel = cpu.model
         next.cpuCoreCount = cpu.coreCount
 
@@ -108,9 +133,7 @@ final class SystemMetricsEngine: ObservableObject {
         next.networkDownRate = network.downRate
         next.networkUpRate = network.upRate
 
-        next.thermalCelsius = thermal.celsius
-        next.thermalState = thermal.state
-        next.fanRPM = thermal.fanRPM
+        next.thermalState = thermal
 
         next.batteryPercent = battery.percent
         next.batteryTimeRemainingMinutes = battery.minutesRemaining
@@ -123,14 +146,5 @@ final class SystemMetricsEngine: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             self?.sample = next
         }
-    }
-
-    private func appending(_ value: Double, to history: [Double]) -> [Double] {
-        var next = history
-        next.append(value)
-        if next.count > historyLimit {
-            next.removeFirst(next.count - historyLimit)
-        }
-        return next
     }
 }

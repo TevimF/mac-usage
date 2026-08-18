@@ -11,15 +11,13 @@ struct CPUCardView: View {
             HStack(alignment: .lastTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("CPU")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .tracking(0.9)
-                        .foregroundStyle(.secondary)
+                        .eyebrowStyle()
                     if isCritical {
-                        Text("acima de 90% por várias amostras")
+                        Text(L10n.t("acima de 90% por várias amostras", "above 90% for several samples"))
                             .font(.system(size: 11.5))
                             .foregroundStyle(DesignColor.critical)
                     } else {
-                        Text("\(sample.cpuModel) · \(sample.cpuCoreCount) núcleos")
+                        Text("\(sample.cpuModel) · \(sample.cpuCoreCount) \(L10n.t("núcleos", "cores"))")
                             .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -41,15 +39,14 @@ struct CPUCardView: View {
                 .frame(height: 54)
 
             HStack {
-                Text("usuário \(Formatting.percent(sample.cpuUserPercent))%")
+                Text("\(L10n.t("usuário", "user")) \(Formatting.percent(sample.cpuUserPercent))%")
                 Spacer()
-                Text("sistema \(Formatting.percent(sample.cpuSystemPercent))%")
+                Text("\(L10n.t("sistema", "system")) \(Formatting.percent(sample.cpuSystemPercent))%")
                 Spacer()
                 Text(windowLabel)
             }
-            .font(.system(size: 10.5))
+            .detailStyle()
             .monospacedDigit()
-            .foregroundStyle(.secondary)
         }
         .padding(12)
         .background(

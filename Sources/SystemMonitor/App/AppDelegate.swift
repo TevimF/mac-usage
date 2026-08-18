@@ -1,4 +1,5 @@
 import Cocoa
+import SwiftUI
 
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -11,12 +12,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var menuBarController: MenuBarController?
     private let popoverController = PopoverController()
-    private let settingsWindowController = SettingsWindowController()
+    private let settingsWindowController = TransientWindowController(
+        title: { L10n.t("Ajustes — Mac usage", "Settings — Mac usage") },
+        rootView: SettingsView()
+    )
+    private let aboutWindowController = TransientWindowController(
+        title: { L10n.t("Sobre o Mac usage", "About Mac usage") },
+        rootView: AboutView()
+    )
     private let keepAwakeStatusItemController = KeepAwakeStatusItemController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        popoverController.attach(settingsWindowController: settingsWindowController)
+        popoverController.attach(settingsWindowController: settingsWindowController, aboutWindowController: aboutWindowController)
         menuBarController = MenuBarController(popoverController: popoverController)
     }
 }

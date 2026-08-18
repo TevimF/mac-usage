@@ -85,4 +85,4 @@ assembles the `.app` bundle, so the whole thing builds from the command line.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+GPLv3 — see [LICENSE](LICENSE).

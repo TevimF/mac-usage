@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 extension Color {
@@ -13,6 +14,18 @@ extension Color {
     }
 }
 
+extension NSColor {
+    convenience init?(hex: String) {
+        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexString = hexString.replacingOccurrences(of: "#", with: "")
+        guard hexString.count == 6, let value = UInt32(hexString, radix: 16) else { return nil }
+        let r = CGFloat((value & 0xFF0000) >> 16) / 255
+        let g = CGFloat((value & 0x00FF00) >> 8) / 255
+        let b = CGFloat(value & 0x0000FF) / 255
+        self.init(srgbRed: r, green: g, blue: b, alpha: 1)
+    }
+}
+
 /// Fixed tokens from the design's "Fundamentos" section — these colors are
 /// the same in light and dark, only the surfaces around them change.
 enum DesignColor {
@@ -21,5 +34,4 @@ enum DesignColor {
     static let diskThermalWarn = Color(hex: "#FF9F0A")
     static let networkHealthy = Color(hex: "#30D158")
     static let critical = Color(hex: "#FF453A")
-    static let criticalLight = Color(hex: "#D70015")
 }

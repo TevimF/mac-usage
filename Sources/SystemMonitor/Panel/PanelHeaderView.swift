@@ -14,7 +14,7 @@ struct PanelHeaderView: View {
                 .lineLimit(1)
             Spacer(minLength: 6)
             if isCritical {
-                Text("Pressão alta")
+                Text(L10n.t("Pressão alta", "High pressure"))
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(DesignColor.critical)
             } else {
@@ -27,7 +27,7 @@ struct PanelHeaderView: View {
                         .font(.system(size: 11))
                 }
                 .glassButton()
-                .help("Ajustes")
+                .help(L10n.t("Ajustes", "Settings"))
             }
         }
     }

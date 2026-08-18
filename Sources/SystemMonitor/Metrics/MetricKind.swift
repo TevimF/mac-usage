@@ -17,11 +17,11 @@ enum MetricKind: String, Codable, CaseIterable, Identifiable {
         case .cpu: return "CPU"
         case .ram: return "RAM"
         case .swap: return "Swap"
-        case .disk: return "Disco"
-        case .diskIO: return "Disco E/S"
-        case .network: return "Rede"
-        case .thermal: return "Térmico"
-        case .battery: return "Bateria"
+        case .disk: return L10n.t("Disco", "Disk")
+        case .diskIO: return L10n.t("Disco E/S", "Disk I/O")
+        case .network: return L10n.t("Rede", "Network")
+        case .thermal: return L10n.t("Térmico", "Thermal")
+        case .battery: return L10n.t("Bateria", "Battery")
         case .gpu: return "GPU"
         }
     }

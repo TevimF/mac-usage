@@ -1,102 +1,78 @@
 import AppKit
 
-/// Hand-drawn cup + saucer + handle, matching the line weight of the SF
-/// Symbol it replaces. Off and on share the exact same outline; "on" fills
-/// most of the cup with a gradient coffee body (plus a lighter surface cap
-/// and two steam wisps above it) — the state is the drink, not a color
-/// change on the cup itself.
+/// The design v2 mark (section 07): a flat-rimmed cup with a side handle
+/// and a baseline instead of a saucer. Off is an outlined cup, on is the
+/// same cup with an amber coffee level inset inside it — the silhouette
+/// never changes size between the two, so the state reads as "empty vs.
+/// full" rather than a recolor or an added badge.
+///
+/// The rising vapor wisps aren't drawn here: they need to loop
+/// continuously, which a one-shot `NSImage` can't do. `KeepAwakeStatusItemController`
+/// adds them as `CALayer`s directly on the button, in the same 24-unit
+/// design space this file draws in (see `designSize`), so they line up
+/// with the cup regardless of what size the button ends up at.
 enum CoffeeCupIcon {
-    private static let designWidth: CGFloat = 22
-    private static let designHeight: CGFloat = 20
+    static let designSize: CGFloat = 24
+    static let coffeeFill = NSColor(red: 0.851, green: 0.627, blue: 0.357, alpha: 1) // #D9A05B
 
-    static func draw(in rect: CGRect, steaming: Bool, cupColor: NSColor, coffeeColor: NSColor, steamColor: NSColor) {
-        let scale = min(rect.width / designWidth, rect.height / designHeight)
-        let offsetX = rect.minX + (rect.width - designWidth * scale) / 2
-        let offsetY = rect.minY + (rect.height - designHeight * scale) / 2
-        let strokeWidth = max(1.1, 1.5 * scale)
+    static func draw(in rect: CGRect, filled: Bool, cupColor: NSColor) {
+        let scale = min(rect.width, rect.height) / designSize
+        let offsetX = rect.minX + (rect.width - designSize * scale) / 2
+        let offsetY = rect.minY + (rect.height - designSize * scale) / 2
+        let strokeWidth = max(1.0, 1.6 * scale)
 
-        // A point given in design space, y measured downward from the top
-        // (steam sits near y=0, the saucer near y=19) — flipped here since
-        // we draw into a y-up NSImage context.
+        // Design space is y-down (rim near the top, baseline at the
+        // bottom); the NSImage context is y-up, so every point flips here.
         func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint {
-            NSPoint(x: offsetX + x * scale, y: offsetY + (designHeight - y) * scale)
+            NSPoint(x: offsetX + x * scale, y: offsetY + (designSize - y) * scale)
         }
 
-        // A rect given by its design-space top-left corner and size.
-        func designRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> NSRect {
-            let actualHeight = height * scale
-            let topY = offsetY + (designHeight - y) * scale
-            return NSRect(x: offsetX + x * scale, y: topY - actualHeight, width: width * scale, height: actualHeight)
-        }
+        cupColor.setStroke()
 
+        // Handle: a rounded loop on the right side of the cup wall.
+        let handle = NSBezierPath()
+        handle.move(to: p(15.5, 10))
+        handle.curve(to: p(15.5, 15), controlPoint1: p(17.4, 10), controlPoint2: p(17.4, 15))
+        handle.lineWidth = strokeWidth
+        handle.lineCapStyle = .round
+        handle.stroke()
+
+        // Cup body: flat rim, near-straight walls, rounded base corners.
         let cup = NSBezierPath()
-        cup.move(to: p(5, 6))
-        cup.line(to: p(17, 6))
-        cup.line(to: p(14.5, 15))
-        cup.curve(to: p(7.5, 15), controlPoint1: p(13, 16.3), controlPoint2: p(9, 16.3))
-        cup.line(to: p(5, 6))
+        cup.move(to: p(5, 8.5))
+        cup.line(to: p(15.5, 8.5))
+        cup.line(to: p(15.5, 14.1))
+        cup.curve(to: p(11.3, 18.3), controlPoint1: p(15.5, 16.42), controlPoint2: p(13.62, 18.3))
+        cup.line(to: p(9.2, 18.3))
+        cup.curve(to: p(5, 14.1), controlPoint1: p(6.88, 18.3), controlPoint2: p(5, 16.42))
         cup.close()
         cup.lineWidth = strokeWidth
         cup.lineJoinStyle = .round
-        cupColor.setStroke()
+
+        // Coffee level: a separate, slightly inset path (not a fill of the
+        // cup's own outline) so the liquid reads as sitting inside the cup
+        // rather than the whole shape swapping color.
+        if filled {
+            let level = NSBezierPath()
+            level.move(to: p(6.4, 10.2))
+            level.line(to: p(14.1, 10.2))
+            level.line(to: p(14.1, 14.1))
+            level.curve(to: p(11.2, 17), controlPoint1: p(14.1, 15.7), controlPoint2: p(12.8, 17))
+            level.line(to: p(9.3, 17))
+            level.curve(to: p(6.4, 14.1), controlPoint1: p(7.7, 17), controlPoint2: p(6.4, 15.7))
+            level.close()
+            coffeeFill.setFill()
+            level.fill()
+        }
         cup.stroke()
 
-        let handle = NSBezierPath()
-        handle.appendArc(withCenter: p(16.2, 10.3), radius: 2.7 * scale, startAngle: -50, endAngle: 50)
-        handle.lineWidth = strokeWidth
-        handle.lineCapStyle = .round
-        cupColor.setStroke()
-        handle.stroke()
-
-        let saucer = NSBezierPath(ovalIn: designRect(x: 1, y: 15.5, width: 20, height: 3))
-        saucer.lineWidth = strokeWidth
-        cupColor.setStroke()
-        saucer.stroke()
-
-        guard steaming else { return }
-
-        // Filled most of the way to the rim, tapered to match the cup, with
-        // a top-to-bottom gradient and a lighter surface cap — a thin ring
-        // at the rim read as "empty cup with a line drawn in it" rather
-        // than a cup that's actually full.
-        let coffeeBody = NSBezierPath()
-        coffeeBody.move(to: p(6, 7))
-        coffeeBody.line(to: p(16, 7))
-        coffeeBody.line(to: p(13.7, 14.3))
-        coffeeBody.curve(to: p(8.3, 14.3), controlPoint1: p(12.4, 15.3), controlPoint2: p(9.6, 15.3))
-        coffeeBody.line(to: p(6, 7))
-        coffeeBody.close()
-
-        NSGraphicsContext.saveGraphicsState()
-        coffeeBody.addClip()
-        let lightCoffee = coffeeColor.blended(withFraction: 0.35, of: .white) ?? coffeeColor
-        let darkCoffee = coffeeColor.blended(withFraction: 0.3, of: .black) ?? coffeeColor
-        if let gradient = NSGradient(starting: lightCoffee, ending: darkCoffee) {
-            gradient.draw(in: coffeeBody.bounds, angle: -90)
-        } else {
-            coffeeColor.setFill()
-            coffeeBody.fill()
-        }
-        NSGraphicsContext.restoreGraphicsState()
-
-        let surface = NSBezierPath(ovalIn: designRect(x: 6.4, y: 7.7, width: 9.2, height: 1.7))
-        (coffeeColor.blended(withFraction: 0.5, of: .white) ?? coffeeColor).setFill()
-        surface.fill()
-
-        let steamWidth = max(0.8, strokeWidth * 0.65)
-        let wisps: [(CGFloat, CGFloat)] = [(8.5, 5.5), (13.5, 5.0)]
-        for (baseX, height) in wisps {
-            let wisp = NSBezierPath()
-            wisp.move(to: p(baseX, 5.5))
-            wisp.curve(
-                to: p(baseX, 5.5 - height),
-                controlPoint1: p(baseX - 2.2, 5.5 - height * 0.35),
-                controlPoint2: p(baseX + 2.2, 5.5 - height * 0.75)
-            )
-            wisp.lineWidth = steamWidth
-            wisp.lineCapStyle = .round
-            steamColor.setStroke()
-            wisp.stroke()
-        }
+        // Baseline instead of a saucer — the cup rests on a surface
+        // without needing its own filled plate shape.
+        let base = NSBezierPath()
+        base.move(to: p(3.6, 21))
+        base.line(to: p(17, 21))
+        base.lineWidth = strokeWidth
+        base.lineCapStyle = .round
+        base.stroke()
     }
 }

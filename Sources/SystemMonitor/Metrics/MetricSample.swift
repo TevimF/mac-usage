@@ -39,9 +39,7 @@ struct MetricSample: Equatable {
     var networkUpRate: Double = 0
 
     // Thermal
-    var thermalCelsius: Double?
     var thermalState: ThermalState = .nominal
-    var fanRPM: Int?
 
     // Battery
     var batteryPercent: Int?
@@ -65,8 +63,8 @@ enum ThermalState: String, Equatable {
     var label: String {
         switch self {
         case .nominal: return "nominal"
-        case .fair: return "elevado"
-        case .serious: return "alto"
+        case .fair: return L10n.t("elevado", "elevated")
+        case .serious: return L10n.t("alto", "high")
         case .critical: return "throttling"
         }
     }

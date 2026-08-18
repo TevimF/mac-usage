@@ -9,21 +9,13 @@ import Foundation
 /// number would be worse than showing the qualitative state the OS actually
 /// gives us.
 final class ThermalSampler {
-    struct Result {
-        var celsius: Double?
-        var state: ThermalState
-        var fanRPM: Int?
-    }
-
-    func sample() -> Result {
-        let state: ThermalState
+    func sample() -> ThermalState {
         switch ProcessInfo.processInfo.thermalState {
-        case .nominal: state = .nominal
-        case .fair: state = .fair
-        case .serious: state = .serious
-        case .critical: state = .critical
-        @unknown default: state = .nominal
+        case .nominal: return .nominal
+        case .fair: return .fair
+        case .serious: return .serious
+        case .critical: return .critical
+        @unknown default: return .nominal
         }
-        return Result(celsius: nil, state: state, fanRPM: nil)
     }
 }

@@ -1,15 +1,15 @@
 import SwiftUI
 
-/// The one and only panel. Every status item opens this same widget — the
-/// groups in the menu bar are just different readouts of the same machine,
-/// so splitting them into separate panels made the app feel like two apps.
+/// The one and only panel, opened by clicking the metrics status item.
+/// Every metric lives here regardless of what the menu bar shows — the bar
+/// is just a shortcut to the first one or two.
 struct PanelView: View {
     @ObservedObject private var engine = SystemMetricsEngine.shared
     @ObservedObject private var settings = AppSettings.shared
 
     var onOpenActivityMonitor: () -> Void
     var onOpenSettings: () -> Void
-    var onQuit: () -> Void
+    var onOpenAbout: () -> Void
 
     private var sample: MetricSample { engine.sample }
     private var accent: Color { Color(hex: settings.accent.rawValue) }
@@ -26,11 +26,12 @@ struct PanelView: View {
             ForEach(settings.panelSectionOrder) { section in
                 sectionView(for: section)
             }
+            KeepAwakeRowView()
             PanelFooterView(
                 isCritical: isCritical,
                 onOpenActivityMonitor: onOpenActivityMonitor,
                 onOpenSettings: onOpenSettings,
-                onQuit: onQuit
+                onOpenAbout: onOpenAbout
             )
         }
         .padding(16)
@@ -42,6 +43,28 @@ struct PanelView: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(isCritical ? DesignColor.critical.opacity(0.45) : Color.clear, lineWidth: 1)
         )
+        // Quick settings on right click — the frequent knobs without
+        // leaving the panel; the full Settings window stays one item away.
+        .contextMenu {
+            Picker(L10n.t("Atualizar a cada", "Update every"), selection: $settings.sampleInterval) {
+                ForEach(SampleInterval.allCases) { interval in
+                    Text(interval.label).tag(interval)
+                }
+            }
+            Picker(L10n.t("Métricas na barra", "Metrics in the bar"), selection: $settings.barMetricCount) {
+                Text(L10n.t("1 métrica", "1 metric")).tag(1)
+                Text(L10n.t("2 métricas", "2 metrics")).tag(2)
+            }
+            Picker(L10n.t("Cor dos ícones", "Icon color"), selection: $settings.iconColorMode) {
+                ForEach(IconColorMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+            Toggle(L10n.t("Mostrar maiores consumos", "Show top consumers"), isOn: $settings.showProcesses)
+            Divider()
+            Button(L10n.t("Ajustes…", "Settings…"), action: onOpenSettings)
+            Button(L10n.t("Sair do Mac usage", "Quit Mac usage")) { NSApp.terminate(nil) }
+        }
     }
 
     @ViewBuilder
@@ -49,14 +72,12 @@ struct PanelView: View {
         switch section {
         case .cpu:
             CPUCardView(sample: sample, accent: accent, isCritical: isCritical, sampleInterval: settings.sampleInterval)
-        case .memoryDisk:
-            MemoryDiskView(sample: sample, isCritical: isCritical)
         case .grid:
-            GridStatsView(sample: sample, isCritical: isCritical)
+            MetricsGridView(sample: sample, isCritical: isCritical)
         case .processes:
             if settings.showProcesses && !sample.topProcesses.isEmpty {
                 ProcessListView(
-                    title: "Maiores consumos",
+                    title: L10n.t("Maiores consumos", "Top consumers"),
                     unit: "CPU",
                     rows: sample.topProcesses.map {
                         ProcessListView.Row(

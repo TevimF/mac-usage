@@ -18,10 +18,8 @@ struct ProcessListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(title.uppercased())
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(0.7)
-                    .foregroundStyle(.secondary)
+                Text(title)
+                    .eyebrowStyle()
                 Spacer()
                 Text(unit)
                     .font(.system(size: 10.5))

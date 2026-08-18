@@ -17,8 +17,4 @@ enum LoginItem {
             NSLog("LoginItem: failed to \(enabled ? "register" : "unregister"): \(error)")
         }
     }
-
-    static var isEnabled: Bool {
-        SMAppService.mainApp.status == .enabled
-    }
 }

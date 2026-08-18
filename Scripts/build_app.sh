@@ -22,6 +22,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_PATH" "$APP/Contents/MacOS/SystemMonitor"
 cp "$ROOT_DIR/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT_DIR/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
+cp "$ROOT_DIR/Resources/lobby-mark.svg" "$APP/Contents/Resources/lobby-mark.svg"
 
 echo "==> codesign (ad-hoc)"
 codesign --force --deep --sign - "$APP"
