@@ -47,8 +47,12 @@ struct MetricSample: Equatable {
     var isCharging: Bool = false
 
     // Processes
-    var topProcesses: [ProcessUsage] = []
-    var topMemoryProcesses: [ProcessUsage] = []
+    /// Candidate pool for the panel's "maiores consumos" list: the union of
+    /// top-by-CPU and top-by-memory (deduplicated by pid) — see
+    /// SystemMetricsEngine. Each entry already carries both cpuPercent and
+    /// memoryMB, so sorting the panel by either metric never drops a
+    /// process that was only prominent in the other.
+    var processes: [ProcessUsage] = []
     /// The panel just opened and the process baseline was seeded this tick,
     /// so there's no reading yet — the list shows a placeholder rather than
     /// collapsing to nothing and pushing the panel's height around.

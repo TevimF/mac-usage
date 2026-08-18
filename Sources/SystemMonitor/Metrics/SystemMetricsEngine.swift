@@ -150,8 +150,7 @@ final class SystemMetricsEngine: ObservableObject {
         next.batteryTimeRemainingMinutes = battery.minutesRemaining
         next.isCharging = battery.isCharging
 
-        next.topProcesses = processes.byCPU
-        next.topMemoryProcesses = processes.byMemory
+        next.processes = Self.mergeCandidates(processes)
         next.processesPending = includeProcesses && panelIsOpen && processesPending
         next.isCritical = criticalTracker.update(cpuPercent: cpu.totalPercent)
 
@@ -194,6 +193,23 @@ final class SystemMetricsEngine: ObservableObject {
         rescheduleTimer(fireImmediately: true)
     }
     #endif
+
+    /// Union of the sampler's two rankings, deduplicated by pid. Neither
+    /// ranking alone is enough for the panel: it lets the person looking at
+    /// it sort by CPU or by RAM, and a process that's only top-4 in the
+    /// metric that ISN'T currently sorting the list would otherwise vanish
+    /// the moment they switched. Internal rather than private so
+    /// SystemMetricsEngineTests can exercise it directly with a crafted
+    /// ProcessSampler.Result, instead of only indirectly through a live
+    /// panel-open/close cycle.
+    static func mergeCandidates(_ result: ProcessSampler.Result) -> [ProcessUsage] {
+        var seenPIDs = Set<Int32>()
+        var merged: [ProcessUsage] = []
+        for usage in result.byCPU + result.byMemory where seenPIDs.insert(usage.id).inserted {
+            merged.append(usage)
+        }
+        return merged
+    }
 
     /// Records where every process's CPU time stands right now, without
     /// producing a reading. Called when the panel opens (or the setting is

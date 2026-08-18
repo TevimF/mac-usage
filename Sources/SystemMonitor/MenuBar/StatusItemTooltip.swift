@@ -20,7 +20,7 @@ enum StatusItemTooltip {
                 "\(L10n.t("usuário", "user")) \(Formatting.percent(sample.cpuUserPercent))% · \(L10n.t("sistema", "system")) \(Formatting.percent(sample.cpuSystemPercent))%",
                 "\(sample.cpuModel) · \(sample.cpuCoreCount) \(L10n.t("núcleos", "cores"))"
             ]
-            if let top = sample.topProcesses.first {
+            if let top = sample.processes.max(by: { $0.cpuPercent < $1.cpuPercent }) {
                 lines.append("\(L10n.t("maior consumo", "top consumer")): \(top.name) \(Formatting.oneDecimalString(top.cpuPercent))%")
             }
             return lines
@@ -30,7 +30,7 @@ enum StatusItemTooltip {
                 "\(L10n.t("Memória", "Memory")) — \(Formatting.gb(sample.memoryUsedGB)) / \(Formatting.gb(sample.memoryTotalGB)) GB (\(Formatting.percent(sample.memoryFraction * 100))%)",
                 "\(L10n.t("ativa", "active")) \(Formatting.gb(sample.memoryActiveGB)) · \(L10n.t("reservada", "wired")) \(Formatting.gb(sample.memoryWiredGB)) · \(L10n.t("comprimida", "compressed")) \(Formatting.gb(sample.memoryCompressedGB)) GB"
             ]
-            if let top = sample.topMemoryProcesses.first {
+            if let top = sample.processes.max(by: { $0.memoryMB < $1.memoryMB }) {
                 lines.append("\(L10n.t("maior consumo", "top consumer")): \(top.name) \(Formatting.memory(mb: top.memoryMB))")
             }
             return lines

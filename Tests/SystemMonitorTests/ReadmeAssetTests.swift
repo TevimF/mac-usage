@@ -215,7 +215,9 @@ final class ReadmeAssetTests: XCTestCase {
             throw XCTSkip("could not encode \(name)")
         }
         try data.write(to: outputDirectory.appendingPathComponent(name))
-        XCTAssertGreaterThan(data.count, 1_000, "\(name) looks empty")
+        // A tiny icon like the keep-awake cup is a legitimately small PNG;
+        // this just catches a genuinely blank/corrupt write.
+        XCTAssertGreaterThan(data.count, 200, "\(name) looks empty")
     }
 }
 
@@ -233,7 +235,7 @@ extension ReadmeAssetTests {
         AppSettings.shared.showProcesses = true
 
         var sample = busySample()
-        sample.topProcesses = [
+        sample.processes = [
             ProcessUsage(id: 1, name: "Xcode", cpuPercent: 62.4, memoryMB: 3180),
             ProcessUsage(id: 2, name: "Blender", cpuPercent: 28.1, memoryMB: 2440),
             ProcessUsage(id: 3, name: "Safari", cpuPercent: 9.7, memoryMB: 1290),
@@ -245,11 +247,11 @@ extension ReadmeAssetTests {
         for isDark in [true, false] {
             let appearance = NSAppearance(named: isDark ? .darkAqua : .aqua)
             let image = try renderPanel(sample: sample, appearance: appearance)
-            try write(image, named: isDark ? "panel-dark.png" : "panel-light.png")
+            try writePixels(image, named: isDark ? "panel-dark.png" : "panel-light.png")
         }
     }
 
-    private func renderPanel(sample: MetricSample, appearance: NSAppearance?) throws -> NSImage {
+    private func renderPanel(sample: MetricSample, appearance: NSAppearance?) throws -> CGImage {
         let hosting = NSHostingView(rootView: PanelView(
             onOpenActivityMonitor: {},
             onOpenSettings: {},
@@ -298,17 +300,81 @@ extension ReadmeAssetTests {
         container.frame = NSRect(origin: .zero, size: fitting)
         hosting.frame = container.bounds
         hosting.layoutSubtreeIfNeeded()
-        for _ in 0..<6 {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+
+        // `cacheDisplay(in:to:)` used to be the capture here, but it walks
+        // each view's own draw/layer content directly and never goes
+        // through the window server — so anything that depends on real
+        // compositing (Liquid Glass's translucent material, in particular)
+        // came out wrong: the footer buttons' pill background disappeared
+        // entirely, leaving their text floating, uncontrasted, on the panel
+        // background. A real screenshot of the actual window, taken after
+        // it's been ordered on screen and given the compositor a moment to
+        // settle, doesn't have that gap — it's the same pixels a person
+        // opening the popover would see.
+        window.orderFrontRegardless()
+        defer { window.orderOut(nil) }
+        for _ in 0..<10 {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.03))
         }
 
-        guard let rep = container.bitmapImageRepForCachingDisplay(in: container.bounds) else {
-            throw XCTSkip("no bitmap for the panel")
+        guard let cgImage = CGWindowListCreateImage(
+            .null,
+            .optionIncludingWindow,
+            CGWindowID(window.windowNumber),
+            [.boundsIgnoreFraming, .bestResolution]
+        ) else {
+            throw XCTSkip("no composited image for the panel")
         }
-        container.cacheDisplay(in: container.bounds, to: rep)
+        return cgImage
+    }
 
-        let image = NSImage(size: container.bounds.size)
-        image.addRepresentation(rep)
-        return image
+    /// `write(_:named:)` assumes it's still rasterizing a points-sized
+    /// NSImage and doubles it for retina — wrong for a `CGImage` that's
+    /// already real device pixels from `CGWindowListCreateImage`, which
+    /// would double it a second time. This writes the pixels as they are.
+    private func writePixels(_ cgImage: CGImage, named name: String) throws {
+        let rep = NSBitmapImageRep(cgImage: cgImage)
+        guard let data = rep.representation(using: .png, properties: [:]) else {
+            throw XCTSkip("could not encode \(name)")
+        }
+        try data.write(to: outputDirectory.appendingPathComponent(name))
+        XCTAssertGreaterThan(data.count, 1_000, "\(name) looks empty")
+    }
+}
+
+// MARK: - Menu bar mock (three states)
+
+extension ReadmeAssetTests {
+    /// The metrics item and the keep-awake cup, rendered standalone at
+    /// their real sizes, for compositing into a mock menu bar strip
+    /// outside of Swift (see `scripts/menu_bar_mock.py`).
+    func testGenerateMenuBarStateIcons() throws {
+        let accent = NSColor(hex: AccentOption.cyan.rawValue)!
+        let calm = busySample()
+        let hot = criticalSample()
+
+        for isDark in [true, false] {
+            let cupColor = isDark ? NSColor(white: 1, alpha: 0.94) : NSColor(white: 0.11, alpha: 1)
+            let suffix = isDark ? "dark" : "light"
+
+            let normalItem = StatusItemContentRenderer.render(
+                metrics: [.cpu, .ram], sample: calm, style: .capsule,
+                accent: accent, colorMode: .neutral, isDark: isDark
+            )
+            try write(normalItem, named: "state-normal-\(suffix).png")
+
+            let criticalItem = StatusItemContentRenderer.render(
+                metrics: [.cpu, .ram], sample: hot, style: .capsule,
+                accent: accent, colorMode: .neutral, isDark: isDark
+            )
+            try write(criticalItem, named: "state-critical-\(suffix).png")
+
+            let cupSize = CGSize(width: 21, height: StatusItemContentRenderer.contentHeight)
+            let cup = NSImage(size: cupSize, flipped: false) { rect in
+                CoffeeCupIcon.draw(in: rect, filled: true, cupColor: cupColor)
+                return true
+            }
+            try write(cup, named: "state-cup-\(suffix).png")
+        }
     }
 }
