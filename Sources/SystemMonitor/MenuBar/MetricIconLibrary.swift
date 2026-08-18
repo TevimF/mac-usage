@@ -13,6 +13,7 @@ enum MetricIconLibrary {
         case .ram: return "memorychip"
         case .swap: return "arrow.left.arrow.right"
         case .disk: return "internaldrive"
+        case .diskIO: return "gauge"
         case .network: return "arrow.up.arrow.down"
         case .thermal: return "thermometer.medium"
         case .battery: return batterySymbolName(percent: nil, isCharging: false)

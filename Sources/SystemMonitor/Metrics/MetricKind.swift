@@ -2,8 +2,13 @@ import Foundation
 
 /// One measurable system resource. Each case maps to one icon in the
 /// custom 24pt-grid icon family from the design spec (section 04).
+///
+/// Disk space and disk throughput are separate cases on purpose — "how full
+/// is it" and "how fast is it moving right now" are different questions,
+/// and collapsing them into one metric meant picking one and hiding the
+/// other instead of letting the user choose (or show both).
 enum MetricKind: String, Codable, CaseIterable, Identifiable {
-    case cpu, ram, swap, disk, network, thermal, battery, gpu
+    case cpu, ram, swap, disk, diskIO, network, thermal, battery, gpu
 
     var id: String { rawValue }
 
@@ -12,7 +17,8 @@ enum MetricKind: String, Codable, CaseIterable, Identifiable {
         case .cpu: return "CPU"
         case .ram: return "RAM"
         case .swap: return "Swap"
-        case .disk: return "Disco"
+        case .disk: return "Disco (espaço)"
+        case .diskIO: return "Disco (velocidade)"
         case .network: return "Rede"
         case .thermal: return "Térmico"
         case .battery: return "Bateria"
@@ -21,9 +27,9 @@ enum MetricKind: String, Codable, CaseIterable, Identifiable {
     }
 
     /// Metrics that carry two directional values (network down/up, disk
-    /// read/write) use the two-line status item layout instead of a single
-    /// value capsule.
-    var isDualValue: Bool { self == .network || self == .disk }
+    /// read/write) contribute two chips — instead of one — to a status
+    /// item's row.
+    var isDualValue: Bool { self == .network || self == .diskIO }
 
     /// Whether this metric is currently implemented end-to-end. GPU has an
     /// icon in the family but no reliable public data source yet.
