@@ -41,10 +41,13 @@ struct PanelSectionsEditorView: View {
                 .fill(dropTarget == section ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.05))
         )
         .contentShape(Rectangle())
-        .draggable(section)
-        .dropDestination(for: PanelSection.self) { dropped, _ in
+        // String payload, not the PanelSection Transferable — see
+        // MetricOrderEditorView for why a custom Transferable's UTType
+        // silently fails to round-trip without Info.plist registration.
+        .draggable(section.rawValue)
+        .dropDestination(for: String.self) { dropped, _ in
             defer { dropTarget = nil }
-            guard let dragged = dropped.first, dragged != section,
+            guard let raw = dropped.first, let dragged = PanelSection(rawValue: raw), dragged != section,
                   let from = settings.panelSectionOrder.firstIndex(of: dragged),
                   let to = settings.panelSectionOrder.firstIndex(of: section)
             else { return false }

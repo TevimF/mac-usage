@@ -1,6 +1,4 @@
-import CoreTransferable
 import Foundation
-import UniformTypeIdentifiers
 
 /// One measurable system resource. Each case maps to one icon in the
 /// custom 24pt-grid icon family from the design spec (section 04).
@@ -36,10 +34,4 @@ enum MetricKind: String, Codable, CaseIterable, Identifiable {
     /// Whether this metric is currently implemented end-to-end. GPU has an
     /// icon in the family but no reliable public data source yet.
     var isAvailable: Bool { self != .gpu }
-}
-
-extension MetricKind: Transferable {
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .systemMonitorMetricKind)
-    }
 }

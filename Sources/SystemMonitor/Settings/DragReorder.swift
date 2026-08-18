@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Purely decorative — a visual "this row can be dragged" cue. The actual
 /// dragging is `.draggable`/`.dropDestination` on each row (see
@@ -20,9 +19,4 @@ struct DragHandle: View {
             .foregroundStyle(.secondary)
             .frame(width: 14)
     }
-}
-
-extension UTType {
-    static let systemMonitorMetricKind = UTType(exportedAs: "com.estevaofonseca.systemmonitor.metric-kind")
-    static let systemMonitorPanelSection = UTType(exportedAs: "com.estevaofonseca.systemmonitor.panel-section")
 }

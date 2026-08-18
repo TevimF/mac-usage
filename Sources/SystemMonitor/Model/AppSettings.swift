@@ -1,7 +1,5 @@
-import Combine
-import CoreTransferable
 import Foundation
-import UniformTypeIdentifiers
+import Combine
 
 enum IconStyle: String, Codable, CaseIterable, Identifiable {
     // Raw values are what old installs persisted — they stay Portuguese
@@ -119,12 +117,6 @@ enum PanelSection: String, Codable, CaseIterable, Identifiable {
         case .grid: return L10n.t("Métricas", "Metrics")
         case .processes: return L10n.t("Maiores consumos", "Top consumers")
         }
-    }
-}
-
-extension PanelSection: Transferable {
-    static var transferRepresentation: some TransferRepresentation {
-        CodableRepresentation(contentType: .systemMonitorPanelSection)
     }
 }
 

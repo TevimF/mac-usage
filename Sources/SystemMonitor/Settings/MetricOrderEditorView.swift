@@ -99,10 +99,18 @@ struct MetricOrderEditorView: View {
             move(metric, by: press.key == .upArrow ? -1 : 1)
             return .handled
         }
-        .draggable(metric)
-        .dropDestination(for: MetricKind.self) { dropped, _ in
+        // A plain String payload (metric.rawValue), not a custom
+        // Transferable — a custom type needs its UTType actually
+        // registered (normally via Info.plist's UTExportedTypeDeclarations)
+        // to round-trip reliably through NSItemProvider; without that, the
+        // drop silently decodes to nothing and `dropped.first` is always
+        // nil, so the reorder quietly never happens. String's built-in
+        // Transferable conformance uses a standard system type (plain
+        // text), which needs no registration at all.
+        .draggable(metric.rawValue)
+        .dropDestination(for: String.self) { dropped, _ in
             defer { dropTarget = nil }
-            guard let dragged = dropped.first, dragged != metric,
+            guard let raw = dropped.first, let dragged = MetricKind(rawValue: raw), dragged != metric,
                   let from = settings.metricOrder.firstIndex(of: dragged),
                   let to = settings.metricOrder.firstIndex(of: metric)
             else { return false }
