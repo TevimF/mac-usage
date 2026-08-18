@@ -20,9 +20,10 @@ enum MetricKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Metrics that carry two directional values (e.g. network down/up) use
-    /// the two-line status item layout instead of a single value capsule.
-    var isDualValue: Bool { self == .network }
+    /// Metrics that carry two directional values (network down/up, disk
+    /// read/write) use the two-line status item layout instead of a single
+    /// value capsule.
+    var isDualValue: Bool { self == .network || self == .disk }
 
     /// Whether this metric is currently implemented end-to-end. GPU has an
     /// icon in the family but no reliable public data source yet.

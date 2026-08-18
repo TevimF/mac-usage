@@ -31,6 +31,8 @@ struct MetricSample: Equatable {
     // Disk
     var diskUsedGB: Double = 0
     var diskTotalGB: Double = 0
+    var diskReadRate: Double = 0 // MB/s
+    var diskWriteRate: Double = 0 // MB/s
 
     // Network (MB/s)
     var networkDownRate: Double = 0

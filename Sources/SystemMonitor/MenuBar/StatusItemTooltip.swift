@@ -44,8 +44,8 @@ enum StatusItemTooltip {
 
         case .disk:
             return [
-                "Disco — \(Formatting.gb(sample.diskUsedGB)) / \(Formatting.gb(sample.diskTotalGB)) GB",
-                "livre \(Formatting.gb(sample.diskTotalGB - sample.diskUsedGB)) GB (\(Formatting.percent((1 - sample.diskFraction) * 100))%)"
+                "Disco — ↓ \(Formatting.mbps(sample.diskReadRate)) MB/s · ↑ \(Formatting.mbps(sample.diskWriteRate)) MB/s",
+                "\(Formatting.gb(sample.diskUsedGB)) / \(Formatting.gb(sample.diskTotalGB)) GB usados (\(Formatting.percent(sample.diskFraction * 100))%)"
             ]
 
         case .network:

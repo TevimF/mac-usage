@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Lets the user compose the status items: 1–2 metrics per item, network
-/// always alone (it already carries two values — down and up), matching
-/// the design's "no máximo duas métricas por item" rule.
+/// Lets the user compose the status items: 1–2 metrics per item, dual-value
+/// metrics (network down/up, disk read/write) always alone since they
+/// already carry two values, matching the design's "no máximo duas métricas
+/// por item" rule.
 struct StatusItemsEditorView: View {
     @ObservedObject private var settings = AppSettings.shared
 
@@ -19,7 +20,7 @@ struct StatusItemsEditorView: View {
             }
             .disabled(nextAvailableMetric() == nil)
 
-            Text("Até 2 métricas por item · rede ocupa o item sozinha (já mostra ↓ e ↑). Cada item extra vira um ícone a mais na barra.")
+            Text("Até 2 métricas por item · rede e disco ocupam o item sozinhos (já mostram ↓ e ↑). Cada item extra vira um ícone a mais na barra.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -90,7 +91,7 @@ private struct SlotRow: View {
     }
 
     private var canAddMore: Bool {
-        guard !slot.metrics.contains(.network) else { return false }
+        guard !slot.metrics.contains(where: \.isDualValue) else { return false }
         return slot.metrics.count < 2 && !addableMetrics.isEmpty
     }
 
@@ -98,7 +99,7 @@ private struct SlotRow: View {
         let assignedElsewhere = Set(settings.statusItemSlots.filter { $0.id != slot.id }.flatMap(\.metrics))
         let assignedHere = Set(slot.metrics)
         return MetricKind.allCases.filter {
-            $0.isAvailable && $0 != .network && !assignedElsewhere.contains($0) && !assignedHere.contains($0)
+            $0.isAvailable && !$0.isDualValue && !assignedElsewhere.contains($0) && !assignedHere.contains($0)
         }
     }
 }

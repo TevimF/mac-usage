@@ -45,6 +45,13 @@ struct MemoryDiskView: View {
                         .monospacedDigit()
                 }
                 MeterBar(fraction: sample.diskFraction, color: DesignColor.diskThermalWarn)
+                HStack(spacing: 12) {
+                    Text("↓ \(Formatting.mbps(sample.diskReadRate))")
+                    Text("↑ \(Formatting.mbps(sample.diskWriteRate)) MB/s")
+                }
+                .font(.system(size: 10))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
             }
         }
     }

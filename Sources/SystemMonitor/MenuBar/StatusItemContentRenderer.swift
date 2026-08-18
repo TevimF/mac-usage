@@ -29,8 +29,8 @@ enum StatusItemContentRenderer {
         let metrics = slot.metrics.filter { $0.isAvailable }
         guard let first = metrics.first else { return blank() }
 
-        if first == .network {
-            return renderTwoLine(sample: sample, accent: accent, isDark: isDark)
+        if first.isDualValue {
+            return renderTwoLine(metric: first, sample: sample, isDark: isDark)
         }
         if metrics.count >= 2 {
             return renderSideBySide(metrics: metrics, sample: sample, isDark: isDark)
@@ -130,15 +130,16 @@ enum StatusItemContentRenderer {
         }
     }
 
-    // MARK: - Network: two stacked lines (down / up)
+    // MARK: - Dual-value metrics: two stacked lines (network down/up, disk read/write)
 
-    private static func renderTwoLine(sample: MetricSample, accent: NSColor, isDark: Bool) -> NSImage {
+    private static func renderTwoLine(metric: MetricKind, sample: MetricSample, isDark: Bool) -> NSImage {
         let textColor = foregroundColor(isDark: isDark, isCritical: sample.isCritical)
         let font = NSFont.monospacedDigitSystemFont(ofSize: 8.5, weight: .semibold)
         let textAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
 
-        let downText = "\(Formatting.mbps(sample.networkDownRate)) MB/s"
-        let upText = "\(Formatting.mbps(sample.networkUpRate)) MB/s"
+        let (downRate, upRate) = dualValues(for: metric, sample: sample)
+        let downText = "\(Formatting.mbps(downRate)) MB/s"
+        let upText = "\(Formatting.mbps(upRate)) MB/s"
         let downWidth = downText.size(withAttributes: textAttrs).width
         let upWidth = upText.size(withAttributes: textAttrs).width
         let maxTextWidth = max(downWidth, upWidth)
@@ -167,6 +168,17 @@ enum StatusItemContentRenderer {
 
     private static func blank() -> NSImage {
         NSImage(size: CGSize(width: 1, height: contentHeight))
+    }
+
+    /// Down-arrow / up-arrow pair for whichever dual-value metric is being
+    /// rendered — network's incoming/outgoing throughput, or disk's
+    /// read/write throughput. Both read as "MB/s in this direction", so the
+    /// same two-line layout and the same arrow icons work for either.
+    private static func dualValues(for metric: MetricKind, sample: MetricSample) -> (down: Double, up: Double) {
+        switch metric {
+        case .disk: return (sample.diskReadRate, sample.diskWriteRate)
+        default: return (sample.networkDownRate, sample.networkUpRate)
+        }
     }
 
     private static func valueString(for metric: MetricKind, sample: MetricSample) -> String {

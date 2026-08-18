@@ -13,6 +13,7 @@ final class SystemMetricsEngine: ObservableObject {
     private let cpuSampler = CPUSampler()
     private let memorySampler = MemorySampler()
     private let diskSampler = DiskSampler()
+    private let diskIOSampler = DiskIOSampler()
     private let networkSampler = NetworkSampler()
     private let thermalSampler = ThermalSampler()
     private let batterySampler = BatterySampler()
@@ -69,6 +70,7 @@ final class SystemMetricsEngine: ObservableObject {
         let cpu = cpuSampler.sample()
         let memory = memorySampler.sample()
         let disk = diskSampler.sample()
+        let diskIO = diskIOSampler.sample()
         let network = networkSampler.sample()
         let thermal = thermalSampler.sample()
         let battery = batterySampler.sample()
@@ -100,6 +102,8 @@ final class SystemMetricsEngine: ObservableObject {
 
         next.diskUsedGB = disk.usedGB
         next.diskTotalGB = disk.totalGB
+        next.diskReadRate = diskIO.readRate
+        next.diskWriteRate = diskIO.writeRate
 
         next.networkDownRate = network.downRate
         next.networkUpRate = network.upRate
