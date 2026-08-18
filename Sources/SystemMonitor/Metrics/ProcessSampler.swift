@@ -30,7 +30,12 @@ final class ProcessSampler {
     }()
 
     func sample(limit: Int) -> Result {
-        let pids = Self.listPIDs()
+        // Excluded on purpose: this app briefly spikes its own CPU while
+        // actively drawing the open panel, and showing up in your own
+        // "biggest consumers" list is confusing self-reference, not a
+        // useful reading of what else is running on the machine.
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let pids = Self.listPIDs().filter { $0 != ownPID }
         let now = Date()
         var raw: [RawUsage] = []
         raw.reserveCapacity(pids.count)
