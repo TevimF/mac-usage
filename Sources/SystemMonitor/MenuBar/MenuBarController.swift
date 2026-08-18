@@ -22,7 +22,16 @@ final class MenuBarController: NSObject {
         self.popoverController = popoverController
         super.init()
 
+        // Editing status items in Settings (each "+"/"x" tap, each add/remove
+        // slot) reassigns the whole array, and each reassignment on its own
+        // tears down and recreates every NSStatusItem. Composing a new
+        // layout is several edits in a row, and firing a full remove+recreate
+        // cycle for each one back-to-back is what left the old item's pixels
+        // ghosted on screen — AppKit doesn't always get a clean repaint
+        // between such rapid-fire menu bar churn. Debouncing collapses a
+        // burst of edits into the one rebuild that reflects where they land.
         settings.$statusItemSlots
+            .debounce(for: .milliseconds(250), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in self?.rebuildStatusItems() }
             .store(in: &cancellables)
 
