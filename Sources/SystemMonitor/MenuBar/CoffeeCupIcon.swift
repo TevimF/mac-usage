@@ -1,9 +1,10 @@
 import AppKit
 
 /// Hand-drawn cup + saucer + handle, matching the line weight of the SF
-/// Symbol it replaces. Off and on share the exact same outline; "on" adds a
-/// coffee-fill line inside the rim and two steam wisps above it — the state
-/// is the drink, not a color change.
+/// Symbol it replaces. Off and on share the exact same outline; "on" fills
+/// most of the cup with a gradient coffee body (plus a lighter surface cap
+/// and two steam wisps above it) — the state is the drink, not a color
+/// change on the cup itself.
 enum CoffeeCupIcon {
     private static let designWidth: CGFloat = 22
     private static let designHeight: CGFloat = 20
@@ -54,9 +55,33 @@ enum CoffeeCupIcon {
 
         guard steaming else { return }
 
-        let coffee = NSBezierPath(ovalIn: designRect(x: 6, y: 6.6, width: 10, height: 2))
-        coffeeColor.setFill()
-        coffee.fill()
+        // Filled most of the way to the rim, tapered to match the cup, with
+        // a top-to-bottom gradient and a lighter surface cap — a thin ring
+        // at the rim read as "empty cup with a line drawn in it" rather
+        // than a cup that's actually full.
+        let coffeeBody = NSBezierPath()
+        coffeeBody.move(to: p(6, 7))
+        coffeeBody.line(to: p(16, 7))
+        coffeeBody.line(to: p(13.7, 14.3))
+        coffeeBody.curve(to: p(8.3, 14.3), controlPoint1: p(12.4, 15.3), controlPoint2: p(9.6, 15.3))
+        coffeeBody.line(to: p(6, 7))
+        coffeeBody.close()
+
+        NSGraphicsContext.saveGraphicsState()
+        coffeeBody.addClip()
+        let lightCoffee = coffeeColor.blended(withFraction: 0.35, of: .white) ?? coffeeColor
+        let darkCoffee = coffeeColor.blended(withFraction: 0.3, of: .black) ?? coffeeColor
+        if let gradient = NSGradient(starting: lightCoffee, ending: darkCoffee) {
+            gradient.draw(in: coffeeBody.bounds, angle: -90)
+        } else {
+            coffeeColor.setFill()
+            coffeeBody.fill()
+        }
+        NSGraphicsContext.restoreGraphicsState()
+
+        let surface = NSBezierPath(ovalIn: designRect(x: 6.4, y: 7.7, width: 9.2, height: 1.7))
+        (coffeeColor.blended(withFraction: 0.5, of: .white) ?? coffeeColor).setFill()
+        surface.fill()
 
         let steamWidth = max(0.8, strokeWidth * 0.65)
         let wisps: [(CGFloat, CGFloat)] = [(8.5, 5.5), (13.5, 5.0)]

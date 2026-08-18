@@ -45,6 +45,11 @@ final class MenuBarController: NSObject {
             .sink { [weak self] _ in self?.redrawAll() }
             .store(in: &cancellables)
 
+        settings.$iconColorMode
+            .dropFirst()
+            .sink { [weak self] _ in self?.redrawAll() }
+            .store(in: &cancellables)
+
         engine.$sample
             .sink { [weak self] _ in self?.redrawAll() }
             .store(in: &cancellables)
@@ -93,6 +98,7 @@ final class MenuBarController: NSObject {
                 sample: sample,
                 style: settings.iconStyle,
                 accent: accent,
+                colorMode: settings.iconColorMode,
                 isDark: isDark
             )
         }

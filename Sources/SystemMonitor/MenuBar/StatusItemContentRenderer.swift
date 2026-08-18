@@ -34,19 +34,19 @@ enum StatusItemContentRenderer {
     private static let gap: CGFloat = 4
     private static let chipGap: CGFloat = 3
 
-    static func render(slot: StatusItemSlot, sample: MetricSample, style: IconStyle, accent: NSColor, isDark: Bool) -> NSImage {
+    static func render(slot: StatusItemSlot, sample: MetricSample, style: IconStyle, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
         let metrics = slot.metrics.filter { $0.isAvailable }
         guard let first = metrics.first else { return blank() }
 
         if metrics.count == 1, !first.isDualValue {
-            return renderSingle(metric: first, sample: sample, style: style, accent: accent, isDark: isDark)
+            return renderSingle(metric: first, sample: sample, style: style, accent: accent, colorMode: colorMode, isDark: isDark)
         }
-        return renderRow(metrics: metrics, sample: sample, accent: accent, isDark: isDark)
+        return renderRow(metrics: metrics, sample: sample, accent: accent, colorMode: colorMode, isDark: isDark)
     }
 
     // MARK: - Lone single-value metric (styles A/B/C)
 
-    private static func renderSingle(metric: MetricKind, sample: MetricSample, style: IconStyle, accent: NSColor, isDark: Bool) -> NSImage {
+    private static func renderSingle(metric: MetricKind, sample: MetricSample, style: IconStyle, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
         let textColor = foregroundColor(isDark: isDark, isCritical: sample.isCritical)
         let valueText = valueString(for: metric, sample: sample)
         let icon = MetricIconLibrary.image(for: metric, pointSize: iconPointSize, sample: sample)
@@ -71,7 +71,7 @@ enum StatusItemContentRenderer {
         return NSImage(size: size, flipped: false) { rect in
             var x = sidePadding
             if showIcon {
-                let iconColor = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor)
+                let iconColor = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor, colorMode: colorMode)
                 let tinted = icon.tinted(with: iconColor)
                 let y = (rect.height - icon.size.height) / 2
                 tinted.draw(at: CGPoint(x: x, y: y), from: .zero, operation: .sourceOver, fraction: 1)
@@ -100,21 +100,16 @@ enum StatusItemContentRenderer {
         let tint: NSColor
     }
 
-    private static func renderRow(metrics: [MetricKind], sample: MetricSample, accent: NSColor, isDark: Bool) -> NSImage {
+    private static func renderRow(metrics: [MetricKind], sample: MetricSample, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> NSImage {
         let textColor = foregroundColor(isDark: isDark, isCritical: sample.isCritical)
         let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
         let textAttrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
 
         // Dual-value metrics contribute two chips (down, up) with no divider
         // between them, so they stay visually grouped as one reading; a
-        // divider only separates different metrics. Icons carry the same
-        // per-metric color the panel already uses (CPU gets the user's
-        // accent, RAM/swap indigo, disk/thermal orange, network green) so
-        // several metrics in one row stay tellable apart at a glance, and so
-        // the accent color picker actually does something visible even when
-        // CPU isn't rendered as a lone sparkline.
+        // divider only separates different metrics.
         let groups: [[Chip]] = metrics.map { metric in
-            let tint = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor)
+            let tint = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor, colorMode: colorMode)
             if metric.isDualValue {
                 let (down, up) = dualValues(for: metric, sample: sample)
                 return [
@@ -207,28 +202,74 @@ enum StatusItemContentRenderer {
         return isDark ? NSColor(white: 1, alpha: 0.94) : NSColor(white: 0.11, alpha: 1)
     }
 
-    /// Same per-metric palette the panel uses (see DesignColor): CPU takes
-    /// the user's chosen accent, everything else has a fixed semantic color.
-    /// Critical state overrides all of it with red — an alert should be
-    /// unmissable, not just the one metric that tripped it.
-    private static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor) -> NSColor {
-        let critical = NSColor(red: 1, green: 0.29, blue: 0.23, alpha: 1) // #FF453A
-        let warn = NSColor(red: 1, green: 0.62, blue: 0.04, alpha: 1) // #FF9F0A
-        guard !sample.isCritical else { return critical }
+    private static let criticalColor = NSColor(red: 1, green: 0.29, blue: 0.23, alpha: 1) // #FF453A
+    private static let warnColor = NSColor(red: 1, green: 0.62, blue: 0.04, alpha: 1) // #FF9F0A
 
-        switch metric {
-        case .cpu: return accent
-        case .ram, .swap: return NSColor(red: 0.369, green: 0.361, blue: 0.902, alpha: 1) // #5E5CE6
-        case .disk, .diskIO: return warn
-        case .network: return NSColor(red: 0.188, green: 0.820, blue: 0.345, alpha: 1) // #30D158
-        case .thermal:
+    /// Critical state (CPU stuck above 90%) overrides every mode with red —
+    /// an alert should be unmissable, not just the one metric that tripped
+    /// it. Below that, the three color modes diverge.
+    private static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor, colorMode: IconColorMode) -> NSColor {
+        guard !sample.isCritical else { return criticalColor }
+
+        if metric == .thermal {
             switch sample.thermalState {
             case .nominal, .fair: return base
-            case .serious: return warn
-            case .critical: return critical
+            case .serious: return warnColor
+            case .critical: return criticalColor
             }
-        case .battery, .gpu: return base
         }
+
+        switch colorMode {
+        case .neutral:
+            return base
+
+        case .perMetric:
+            // Same palette the panel uses (see DesignColor): CPU takes the
+            // user's chosen accent, everything else has a fixed color.
+            switch metric {
+            case .cpu: return accent
+            case .ram, .swap: return NSColor(red: 0.369, green: 0.361, blue: 0.902, alpha: 1) // #5E5CE6
+            case .disk, .diskIO: return warnColor
+            case .network: return NSColor(red: 0.188, green: 0.820, blue: 0.345, alpha: 1) // #30D158
+            case .thermal, .battery, .gpu: return base
+            }
+
+        case .byValue:
+            guard let fraction = loadFraction(for: metric, sample: sample) else { return base }
+            return valueTint(fraction: fraction, base: base)
+        }
+    }
+
+    /// How "full" a metric is, 0–1, for `.byValue` coloring. Network and
+    /// disk throughput have no natural ceiling to measure against, so they
+    /// opt out (nil) and stay neutral. Battery is inverted — low charge is
+    /// the state worth flagging, not high.
+    private static func loadFraction(for metric: MetricKind, sample: MetricSample) -> Double? {
+        switch metric {
+        case .cpu: return sample.cpuPercent / 100
+        case .ram: return sample.memoryFraction
+        case .swap: return sample.swapTotalGB > 0 ? sample.swapUsedGB / sample.swapTotalGB : 0
+        case .disk: return sample.diskFraction
+        case .battery:
+            guard let percent = sample.batteryPercent, !sample.isCharging else { return nil }
+            return (100 - Double(percent)) / 100
+        case .network, .diskIO, .thermal, .gpu: return nil
+        }
+    }
+
+    /// Neutral below 70%, sliding into orange from 70–90%, then orange into
+    /// red from 90–100% — a gradient instead of a hard flip so the color
+    /// actually reads as "climbing" rather than snapping on at one number.
+    private static func valueTint(fraction: Double, base: NSColor) -> NSColor {
+        let warnStart = 0.7
+        let criticalStart = 0.9
+        if fraction < warnStart { return base }
+        if fraction < criticalStart {
+            let t = CGFloat((fraction - warnStart) / (criticalStart - warnStart))
+            return base.blended(withFraction: t, of: warnColor) ?? base
+        }
+        let t = CGFloat(min(1, (fraction - criticalStart) / (1 - criticalStart)))
+        return warnColor.blended(withFraction: t, of: criticalColor) ?? warnColor
     }
 }
 

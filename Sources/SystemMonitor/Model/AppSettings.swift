@@ -66,6 +66,31 @@ enum KeepAwakeDuration: Double, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// How the menu bar icons pick up color.
+enum IconColorMode: String, Codable, CaseIterable, Identifiable {
+    /// Always the plain white/black that matches the menu bar's own text —
+    /// only the global critical state (CPU stuck above 90%) overrides it.
+    case neutral
+    /// One fixed color per metric (CPU takes the accent, RAM/swap indigo,
+    /// disk orange, network green) — always on, regardless of the reading.
+    case perMetric
+    /// Neutral at rest, sliding toward orange then red as that metric's own
+    /// value climbs — RAM at 40% is white, RAM at 95% is red. Thermal keeps
+    /// its own state-based color in every mode; network/disk throughput
+    /// don't have a "too high is bad" reading, so they stay neutral here.
+    case byValue
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .neutral: return "Neutro"
+        case .perMetric: return "Uma cor por métrica"
+        case .byValue: return "Muda com o uso"
+        }
+    }
+}
+
 /// One block of the popover panel. Header and footer always stay put; these
 /// are the middle sections the user can reorder.
 enum PanelSection: String, Codable, CaseIterable, Identifiable {
@@ -96,6 +121,7 @@ private struct PersistedSettings: Codable {
     // property as nil rather than a decode failure.
     var keepAwakeDuration: KeepAwakeDuration?
     var panelSectionOrder: [PanelSection]?
+    var iconColorMode: IconColorMode?
 }
 
 /// Single source of truth for user-configurable behavior. Persisted as one
@@ -117,6 +143,7 @@ final class AppSettings: ObservableObject {
     @Published var statusItemSlots: [StatusItemSlot] { didSet { persist() } }
     @Published var keepAwakeDuration: KeepAwakeDuration { didSet { persist() } }
     @Published var panelSectionOrder: [PanelSection] { didSet { persist() } }
+    @Published var iconColorMode: IconColorMode { didSet { persist() } }
 
     private static let defaultsKey = "com.estevaofonseca.systemmonitor.settings"
 
@@ -132,6 +159,7 @@ final class AppSettings: ObservableObject {
             keepAwakeDuration = decoded.keepAwakeDuration ?? .thirtyMinutes
             let storedOrder = decoded.panelSectionOrder ?? PanelSection.allCases
             panelSectionOrder = storedOrder + PanelSection.allCases.filter { !storedOrder.contains($0) }
+            iconColorMode = decoded.iconColorMode ?? .neutral
         } else {
             accent = .cyan
             iconStyle = .capsule
@@ -141,6 +169,7 @@ final class AppSettings: ObservableObject {
             statusItemSlots = [StatusItemSlot(metrics: [.cpu])]
             keepAwakeDuration = .thirtyMinutes
             panelSectionOrder = PanelSection.allCases
+            iconColorMode = .neutral
         }
         // didSet doesn't fire for this initializer's own assignment above,
         // so a persisted `true` is never pushed to SMAppService just by
@@ -159,7 +188,8 @@ final class AppSettings: ObservableObject {
             launchAtLogin: launchAtLogin,
             statusItemSlots: statusItemSlots,
             keepAwakeDuration: keepAwakeDuration,
-            panelSectionOrder: panelSectionOrder
+            panelSectionOrder: panelSectionOrder,
+            iconColorMode: iconColorMode
         )
         guard let data = try? JSONEncoder().encode(snapshot) else { return }
         UserDefaults.standard.set(data, forKey: Self.defaultsKey)

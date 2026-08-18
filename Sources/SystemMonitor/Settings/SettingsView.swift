@@ -6,6 +6,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
+                Picker("Cor dos ícones", selection: $settings.iconColorMode) {
+                    ForEach(IconColorMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+
                 Picker("Cor de destaque (CPU)", selection: $settings.accent) {
                     ForEach(AccentOption.allCases) { option in
                         HStack {
@@ -24,7 +31,7 @@ struct SettingsView: View {
             } header: {
                 Text("Barra de menu")
             } footer: {
-                Text("Não é o ícone do app (Dock/Finder) — isso é fixo. Aqui é só a aparência dos ícones na barra de menu: a cor tinge o ícone de CPU (as outras métricas já têm cor própria — RAM roxo, disco/térmico laranja, rede verde); o formato (número/sparkline/cápsula) só vale quando um item mostra CPU sozinho.")
+                Text("Não é o ícone do app (Dock/Finder) — isso é fixo. \"Neutro\" deixa tudo branco/preto; \"Uma cor por métrica\" dá uma cor fixa pra cada uma; \"Muda com o uso\" fica neutro em repouso e vai para laranja/vermelho conforme o valor sobe (bateria é ao contrário: alerta quando fica baixa). A cor de destaque tinge o ícone de CPU (no modo por métrica) e o gráfico de CPU no painel; o formato número/sparkline/cápsula só vale quando um item mostra CPU sozinho.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
