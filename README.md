@@ -14,6 +14,17 @@
   <img src="https://img.shields.io/badge/License-GPLv3-lightgrey?style=flat-square" alt="GPLv3">
 </p>
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Docs/panel-dark.png">
+    <img src="Docs/panel-light.png" width="320" alt="Painel do Mac usage mostrando CPU, memória, disco, rede, swap, térmico, bateria e maiores consumos">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>O painel completo, aberto com um clique na barra de menu. <em>Valores de exemplo.</em></sub>
+</p>
+
 ---
 
 ## 📑 Sumário
@@ -58,6 +69,17 @@ Ao contrário de alternativas baseadas em Electron ou scripts periódicos pesado
 ## 🎯 Recursos Principais
 
 ### 1. Barra de Menu Customizável
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Docs/menu-bar-dark.png">
+    <img src="Docs/menu-bar-light.png" width="460" alt="Variações do item na barra de menu: numérico, sparkline, cápsula, duas métricas, rede, modos de cor e estado crítico">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>Cada linha é a imagem que o app realmente desenha na barra — gerada pelo próprio código de renderização.</sub>
+</p>
 - **Slots Flexíveis**: Escolha de 1 a 2 métricas prioritárias para exibição direta na barra.
 - **Estilos de Ícone**:
   - `Numérico`: Leitura limpa e direta com tipografia monospaçada.
@@ -84,13 +106,20 @@ Clique em qualquer métrica na barra de menu para abrir um painel completo com v
 - Substitui aplicativos adicionais como Caffeine ou Amphetamine.
 
 ### 4. Alertas Inteligentes de Sobrecarga 🚨
-- Detecta quando a CPU permanece acima de **90%** de forma contínua.
+- Detecta quando a CPU permanece acima de **90%** por **10 segundos seguidos** — medido em tempo, não em número de leituras, então o alerta acende no mesmo momento com o painel aberto ou fechado.
 - Ativa um estado visual crítico com indicador pulsante e alerta no cabeçalho.
 - Inclui mecanismo de *histerese* para evitar que o alerta fique piscando em variações rápidas na borda do limite.
 
 ---
 
 ## 📊 Métricas Monitoradas
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Docs/icon-family-dark.png">
+    <img src="Docs/icon-family-light.png" width="720" alt="Família de ícones: CPU, RAM, Swap, Disco, Disco E/S, Rede, Térmico e Bateria">
+  </picture>
+</p>
 
 | Métrica | Ícone | O que exibe | Fonte de Dados |
 | :--- | :---: | :--- | :--- |
@@ -112,23 +141,23 @@ Abra a janela de Ajustes clicando no ícone de engrenagem no rodapé do painel:
 
 ```
 ┌─────────────────┬──────────────────┬─────────────────┐
-│  Barra de menu  │      Painel      │      Geral      │
+│      Geral      │  Barra de menu   │      Painel     │
 └─────────────────┴──────────────────┴─────────────────┘
 ```
 
-1. **Barra de Menu**:
+1. **Geral**:
+   - Duração padrão da função Manter Tela Ativa.
+   - Alternância de idioma instantânea (**Português do Brasil** ou **English**).
+   - Iniciar automaticamente com o login do sistema (via API moderna `SMAppService`).
+2. **Barra de Menu**:
    - Arraste e solte para reordenar a prioridade das métricas.
    - Defina quantas métricas aparecem na barra (1 ou 2).
    - Escolha o modo de cor dos ícones e a cor de destaque da interface (Ciano, Azul, Verde ou Roxo).
    - Escolha o estilo do ícone (Numérico, Sparkline ou Cápsula de vidro).
-2. **Painel**:
+3. **Painel**:
    - Reorganize a ordem das seções do painel via *drag-and-drop*.
    - Ajuste o intervalo de amostragem (**1s, 2s ou 5s**).
    - Ative ou oculte a seção de maiores consumidores (Top Processos).
-3. **Geral**:
-   - Duração padrão da função Manter Tela Ativa.
-   - Alternância de idioma instantânea (**Português do Brasil** ou **English**).
-   - Iniciar automaticamente com o login do sistema (via API moderna `SMAppService`).
 
 ---
 
@@ -164,6 +193,23 @@ Para testar alterações rapidamente sem precisar reempacotar o `.app`:
 swift build && .build/debug/SystemMonitor
 ```
 
+### Testes
+
+```bash
+swift test
+```
+
+### Imagens desta documentação
+
+As imagens acima não são montagens: são desenhadas pelo próprio código de
+renderização do app (`StatusItemContentRenderer`, `MetricIconLibrary` e a
+`PanelView` real), a partir de uma amostra fixa, para que continuem fiéis ao
+que a versão atual desenha. Para regerá-las:
+
+```bash
+README_ASSETS_DIR=Docs swift test --filter ReadmeAssetTests
+```
+
 ---
 
 ## 🔒 Transparência & APIs Nativas
@@ -187,6 +233,8 @@ SystemMonitor/
 │   ├── Info.plist              # Configurações do bundle (LSUIElement / sem Dock)
 │   ├── AppIcon.icns            # Ícone do aplicativo em alta resolução
 │   └── lobby-mark.svg          # Identidade visual The Lobby
+├── Docs/                       # Imagens do README, geradas pelo próprio app
+├── Tests/SystemMonitorTests/   # Testes (lógica pura + geração das imagens)
 └── Sources/SystemMonitor/
     ├── App/                    # Ponto de entrada (NSApplicationDelegate, NSStatusItem)
     ├── Metrics/                # Samplers de baixo nível (CPU, RAM, Disco, Rede, Bateria, etc.)

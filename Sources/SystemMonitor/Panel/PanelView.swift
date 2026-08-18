@@ -11,6 +11,11 @@ struct PanelView: View {
     var onOpenSettings: () -> Void
     var onOpenAbout: () -> Void
 
+    // Not in AppSettings: a look-right-now toggle for this one popover
+    // instance, not a preference worth persisting — PopoverController
+    // builds a fresh PanelView every time it opens anyway.
+    @State private var processSortMetric: ProcessSortMetric = .cpu
+
     private var sample: MetricSample { engine.sample }
     private var accent: Color { Color(hex: settings.accent.rawValue) }
     private var isCritical: Bool { sample.isCritical }
@@ -75,21 +80,35 @@ struct PanelView: View {
         case .grid:
             MetricsGridView(sample: sample, isCritical: isCritical)
         case .processes:
-            if settings.showProcesses && !sample.topProcesses.isEmpty {
+            if settings.showProcesses && sample.processesPending {
+                ProcessListPlaceholderView(title: L10n.t("Maiores consumos", "Top consumers"))
+            } else if settings.showProcesses && !sample.processes.isEmpty {
                 ProcessListView(
                     title: L10n.t("Maiores consumos", "Top consumers"),
-                    unit: "CPU",
-                    rows: sample.topProcesses.map {
-                        ProcessListView.Row(
-                            id: $0.id,
-                            name: $0.name,
-                            value: Formatting.oneDecimalString($0.cpuPercent) + "%",
-                            fraction: min($0.cpuPercent / 100, 1)
+                    rows: sample.processes.map { usage in
+                        let ram = ramPercent(for: usage)
+                        return ProcessListView.Row(
+                            id: usage.id,
+                            name: usage.name,
+                            cpuPercent: usage.cpuPercent,
+                            cpuText: Formatting.oneDecimalString(usage.cpuPercent) + "%",
+                            ramPercent: ram,
+                            ramText: Formatting.oneDecimalString(ram) + "%"
                         )
                     },
-                    accent: accent
+                    accent: accent,
+                    sortMetric: $processSortMetric
                 )
             }
         }
+    }
+
+    /// A process's resident memory as a fraction of total system RAM — the
+    /// same "% of the whole" shape as cpuPercent, so the two columns read
+    /// side by side without one needing an absolute-size mental model the
+    /// other doesn't.
+    private func ramPercent(for usage: ProcessUsage) -> Double {
+        guard sample.memoryTotalGB > 0 else { return 0 }
+        return usage.memoryMB / (sample.memoryTotalGB * 1024) * 100
     }
 }

@@ -11,14 +11,54 @@ struct SettingsView: View {
 
     var body: some View {
         TabView {
+            GeneralSettingsTab()
+                .tabItem { Label(L10n.t("Geral", "General"), systemImage: "gearshape") }
             MenuBarSettingsTab()
                 .tabItem { Label(L10n.t("Barra de menu", "Menu bar"), systemImage: "menubar.rectangle") }
             PanelSettingsTab()
                 .tabItem { Label(L10n.t("Painel", "Panel"), systemImage: "square.grid.2x2") }
-            GeneralSettingsTab()
-                .tabItem { Label(L10n.t("Geral", "General"), systemImage: "gearshape") }
         }
         .frame(width: 470, height: 500)
+    }
+}
+
+private struct GeneralSettingsTab: View {
+    @ObservedObject private var settings = AppSettings.shared
+
+    var body: some View {
+        Form {
+            Section {
+                Picker(L10n.t("Duração", "Duration"), selection: $settings.keepAwakeDuration) {
+                    ForEach(KeepAwakeDuration.allCases) { duration in
+                        Text(duration.label).tag(duration)
+                    }
+                }
+            } header: {
+                Text(L10n.t("Manter tela acesa", "Keep screen awake"))
+            } footer: {
+                SettingsHelp(L10n.t(
+                    "Quanto tempo a xícara na barra de menu segura a tela antes de desligar sozinha.",
+                    "How long the cup in the menu bar holds the screen before switching itself off."
+                ))
+            }
+
+            Section(L10n.t("Idioma", "Language")) {
+                Picker(L10n.t("Idioma", "Language"), selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Text(language.label).tag(language)
+                    }
+                }
+            }
+
+            Section(L10n.t("Sistema", "System")) {
+                Toggle(L10n.t("Abrir no login", "Open at login"), isOn: $settings.launchAtLogin)
+                // The panel has no quit button (by request) and an
+                // LSUIElement app has no Dock icon — this is the one way
+                // out besides the panel's right-click menu.
+                Button(L10n.t("Sair do Mac usage", "Quit Mac usage")) { NSApp.terminate(nil) }
+            }
+        }
+        .formStyle(.grouped)
     }
 }
 
@@ -97,46 +137,6 @@ private struct PanelSettingsTab: View {
                     "O cabeçalho, a linha de manter tela ativa e o rodapé ficam sempre no lugar. Arraste uma linha pra mudar a ordem.",
                     "The header, the keep-awake row and the footer always stay put. Drag a row to change the order."
                 ))
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct GeneralSettingsTab: View {
-    @ObservedObject private var settings = AppSettings.shared
-
-    var body: some View {
-        Form {
-            Section {
-                Picker(L10n.t("Duração", "Duration"), selection: $settings.keepAwakeDuration) {
-                    ForEach(KeepAwakeDuration.allCases) { duration in
-                        Text(duration.label).tag(duration)
-                    }
-                }
-            } header: {
-                Text(L10n.t("Manter tela acesa", "Keep screen awake"))
-            } footer: {
-                SettingsHelp(L10n.t(
-                    "Quanto tempo a xícara na barra de menu segura a tela antes de desligar sozinha.",
-                    "How long the cup in the menu bar holds the screen before switching itself off."
-                ))
-            }
-
-            Section(L10n.t("Idioma", "Language")) {
-                Picker(L10n.t("Idioma", "Language"), selection: $settings.language) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.label).tag(language)
-                    }
-                }
-            }
-
-            Section(L10n.t("Sistema", "System")) {
-                Toggle(L10n.t("Abrir no login", "Open at login"), isOn: $settings.launchAtLogin)
-                // The panel has no quit button (by request) and an
-                // LSUIElement app has no Dock icon — this is the one way
-                // out besides the panel's right-click menu.
-                Button(L10n.t("Sair do Mac usage", "Quit Mac usage")) { NSApp.terminate(nil) }
             }
         }
         .formStyle(.grouped)

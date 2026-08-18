@@ -52,7 +52,9 @@ final class KeepAwakeController: ObservableObject {
         let result = IOPMAssertionCreateWithName(
             kIOPMAssertionTypePreventUserIdleDisplaySleep as CFString,
             IOPMAssertionLevel(kIOPMAssertionLevelOn),
-            "Mac usage — manter tela acesa" as CFString,
+            // Shows up in `pmset -g assertions`, so it follows the app's
+            // language like every other user-visible string.
+            L10n.t("Mac usage — manter tela acesa", "Mac usage — keep the screen awake") as CFString,
             &id
         )
         guard result == kIOReturnSuccess else {

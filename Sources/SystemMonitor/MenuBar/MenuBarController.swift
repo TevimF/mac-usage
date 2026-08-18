@@ -19,6 +19,9 @@ final class MenuBarController: NSObject {
     // hover held across a tick showed stale numbers. NSViewToolTipOwner is
     // asked for the string fresh each time the tooltip is (re)displayed.
     private var toolTipTag: NSView.ToolTipTag?
+    // What the currently drawn image was built from; a tick that produces
+    // the same key doesn't need a new one.
+    private var lastRenderKey: String?
 
     init(popoverController: PopoverController) {
         self.popoverController = popoverController
@@ -79,6 +82,7 @@ final class MenuBarController: NSObject {
             }
         }
         statusItem = item
+        lastRenderKey = nil
         redraw()
     }
 
@@ -90,6 +94,18 @@ final class MenuBarController: NSObject {
         guard let button = statusItem?.button else { return }
         let accent = NSColor(hex: settings.accent.rawValue) ?? .systemCyan
         let isDark = button.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+
+        let key = StatusItemContentRenderer.renderKey(
+            metrics: barMetrics,
+            sample: engine.sample,
+            style: settings.iconStyle,
+            accent: accent,
+            colorMode: settings.iconColorMode,
+            isDark: isDark
+        )
+        guard key != lastRenderKey || button.image == nil else { return }
+        lastRenderKey = key
+
         button.image = StatusItemContentRenderer.render(
             metrics: barMetrics,
             sample: engine.sample,

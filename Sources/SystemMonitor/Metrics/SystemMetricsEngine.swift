@@ -5,6 +5,12 @@ import Combine
 /// the panel observe the same `sample`, so we never sample twice per tick.
 /// Interval drops from the user's chosen 1/2/5s to a fixed 5s whenever the
 /// panel is closed, per the design's battery-conservation note.
+///
+/// Process sampling is the one part that stops entirely with the panel
+/// closed: it costs one `proc_pidinfo` per live PID (~600 syscalls a tick)
+/// and feeds only the panel's "maiores consumos" list, which nobody can
+/// see while the panel is shut. Everything else is a handful of syscalls
+/// and keeps running, because the status item draws it.
 final class SystemMetricsEngine: ObservableObject {
     static let shared = SystemMetricsEngine()
 
@@ -33,17 +39,29 @@ final class SystemMetricsEngine: ObservableObject {
     // reading the @Published `sample` (written on main) for the previous
     // history was a cross-thread read of a Swift array.
     private var cpuHistory: [Double] = []
-    private var criticalStreak = 0
-    private let criticalThreshold = 90.0
-    private let criticalStreakNeeded = 3
+    private var criticalTracker = CriticalTracker()
     private let historyLimit = 30
     // Snapshot of settings.showProcesses for tick() to read on the timer
     // queue; the @Published property itself belongs to the main thread.
     private var includeProcesses: Bool
+    // Same deal for isPanelOpen, which is written on main.
+    private var panelIsOpen = false
+    // Set when the process baseline has just been seeded and there's no
+    // meaningful delta yet — see restartProcessSampling().
+    private var processesPending = false
 
     var isPanelOpen = false {
         didSet {
             guard oldValue != isPanelOpen else { return }
+            let open = isPanelOpen
+            // Enqueued before the timer is rescheduled below, and the queue
+            // is serial, so the baseline is always in place before the
+            // fire-immediately tick runs.
+            timerQueue.async { [weak self] in
+                guard let self else { return }
+                self.panelIsOpen = open
+                if open { self.restartProcessSampling() }
+            }
             rescheduleTimer(fireImmediately: isPanelOpen)
         }
     }
@@ -64,6 +82,7 @@ final class SystemMetricsEngine: ObservableObject {
                 // internal state, which is only ever touched there.
                 self.timerQueue.async {
                     self.includeProcesses = show
+                    if show { self.restartProcessSampling() }
                     self.tick()
                 }
             }
@@ -94,15 +113,7 @@ final class SystemMetricsEngine: ObservableObject {
         let network = networkSampler.sample()
         let thermal = thermalSampler.sample()
         let battery = batterySampler.sample()
-        let processes = includeProcesses
-            ? processSampler.sample(limit: 4)
-            : ProcessSampler.Result(byCPU: [], byMemory: [])
-
-        if cpu.totalPercent >= criticalThreshold {
-            criticalStreak += 1
-        } else {
-            criticalStreak = 0
-        }
+        let processes = sampleProcesses()
 
         cpuHistory.append(cpu.totalPercent)
         if cpuHistory.count > historyLimit {
@@ -139,12 +150,73 @@ final class SystemMetricsEngine: ObservableObject {
         next.batteryTimeRemainingMinutes = battery.minutesRemaining
         next.isCharging = battery.isCharging
 
-        next.topProcesses = processes.byCPU
-        next.topMemoryProcesses = processes.byMemory
-        next.isCritical = criticalStreak >= criticalStreakNeeded
+        next.processes = Self.mergeCandidates(processes)
+        next.processesPending = includeProcesses && panelIsOpen && processesPending
+        next.isCritical = criticalTracker.update(cpuPercent: cpu.totalPercent)
+
+        processesPending = false
 
         DispatchQueue.main.async { [weak self] in
             self?.sample = next
         }
+    }
+
+    /// Top consumers, but only while the panel is actually showing them.
+    ///
+    /// The tick right after the baseline is seeded returns nothing: its
+    /// delta would span the few milliseconds since the seed, and dividing
+    /// by that gives percentages in the thousands. One interval later
+    /// there's a real elapsed time to divide by.
+    private func sampleProcesses() -> ProcessSampler.Result {
+        guard includeProcesses, panelIsOpen, !processesPending else { return .empty }
+        return processSampler.sample(limit: 4)
+    }
+
+    #if DEBUG
+    /// Test seam: stops the timer and holds a reading of someone else's
+    /// choosing. Used to draw the README's panel image from fixed numbers,
+    /// so regenerating it produces the same picture every time — and so a
+    /// screenshot of the process list doesn't publish whatever the author
+    /// happened to have open. Debug-only; the release build has no way in.
+    func freezeForTesting(_ frozen: MetricSample) {
+        timer?.cancel()
+        timer = nil
+        if Thread.isMainThread {
+            sample = frozen
+        } else {
+            DispatchQueue.main.sync { self.sample = frozen }
+        }
+    }
+
+    /// Puts the engine back to work after `freezeForTesting`.
+    func unfreezeForTesting() {
+        rescheduleTimer(fireImmediately: true)
+    }
+    #endif
+
+    /// Union of the sampler's two rankings, deduplicated by pid. Neither
+    /// ranking alone is enough for the panel: it lets the person looking at
+    /// it sort by CPU or by RAM, and a process that's only top-4 in the
+    /// metric that ISN'T currently sorting the list would otherwise vanish
+    /// the moment they switched. Internal rather than private so
+    /// SystemMetricsEngineTests can exercise it directly with a crafted
+    /// ProcessSampler.Result, instead of only indirectly through a live
+    /// panel-open/close cycle.
+    static func mergeCandidates(_ result: ProcessSampler.Result) -> [ProcessUsage] {
+        var seenPIDs = Set<Int32>()
+        var merged: [ProcessUsage] = []
+        for usage in result.byCPU + result.byMemory where seenPIDs.insert(usage.id).inserted {
+            merged.append(usage)
+        }
+        return merged
+    }
+
+    /// Records where every process's CPU time stands right now, without
+    /// producing a reading. Called when the panel opens (or the setting is
+    /// switched on), since the sampler has been idle and has nothing to
+    /// diff against.
+    private func restartProcessSampling() {
+        processSampler.seed()
+        processesPending = true
     }
 }
