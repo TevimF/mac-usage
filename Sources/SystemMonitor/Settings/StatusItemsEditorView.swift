@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Lets the user compose the status items: 1–2 metrics per item, dual-value
-/// metrics (network down/up, disk read/write) always alone since they
-/// already carry two values, matching the design's "no máximo duas métricas
-/// por item" rule.
+/// Lets the user compose the status items: up to 4 metrics per item.
+/// Single-value metrics (CPU, RAM, swap, disk space, thermal, battery)
+/// share one row; each dual-value metric (network down/up, disk read/write)
+/// gets its own two-line block stacked below — so e.g. CPU+RAM+Swap+Disk
+/// can live in one icon instead of two.
 struct StatusItemsEditorView: View {
     @ObservedObject private var settings = AppSettings.shared
 
@@ -20,7 +21,7 @@ struct StatusItemsEditorView: View {
             }
             .disabled(nextAvailableMetric() == nil)
 
-            Text("Até 2 métricas por item · rede e disco ocupam o item sozinhos (já mostram ↓ e ↑). Cada item extra vira um ícone a mais na barra.")
+            Text("Até 4 métricas por item — rede e disco entram como um bloco de duas linhas (↓ e ↑) dentro do mesmo ícone. Cada item extra vira um ícone a mais na barra.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -91,15 +92,14 @@ private struct SlotRow: View {
     }
 
     private var canAddMore: Bool {
-        guard !slot.metrics.contains(where: \.isDualValue) else { return false }
-        return slot.metrics.count < 2 && !addableMetrics.isEmpty
+        slot.metrics.count < 4 && !addableMetrics.isEmpty
     }
 
     private var addableMetrics: [MetricKind] {
         let assignedElsewhere = Set(settings.statusItemSlots.filter { $0.id != slot.id }.flatMap(\.metrics))
         let assignedHere = Set(slot.metrics)
         return MetricKind.allCases.filter {
-            $0.isAvailable && !$0.isDualValue && !assignedElsewhere.contains($0) && !assignedHere.contains($0)
+            $0.isAvailable && !assignedElsewhere.contains($0) && !assignedHere.contains($0)
         }
     }
 }

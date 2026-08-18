@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuBarController: MenuBarController?
     private let popoverController = PopoverController()
     private let settingsWindowController = SettingsWindowController()
+    private let keepAwakeStatusItemController = KeepAwakeStatusItemController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
