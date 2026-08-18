@@ -32,13 +32,14 @@ enum StatusItemContentRenderer {
     /// far-apart clusters.
     private static let sidePadding: CGFloat = 0
     private static let gap: CGFloat = 4
-    private static let chipGap: CGFloat = 3
-    // Wider than chipGap on purpose: chipGap is icon-to-its-own-value
-    // spacing (tight, the two visually belong together). Down/up used
-    // that same 3pt between one chip's value and the next chip's icon,
-    // so "↓ 0,1 ↑ 2,4" read as four evenly-spaced tokens with no cue for
-    // which arrow paired with which number. This sits between the two
-    // chips of one dual-value metric instead — loose enough to read as
+    // Icon-to-its-own-value spacing — kept tight so the pairing reads at a
+    // glance (an icon and the number right after it clearly belong
+    // together).
+    private static let chipGap: CGFloat = 1.5
+    // Between the two chips of one dual-value metric (down's value to
+    // up's icon). Down/up used to share chipGap for this too, so
+    // "↓ 0,1 ↑ 2,4" read as four evenly-spaced tokens with no cue for
+    // which arrow paired with which number. Loose enough to read as
     // "down-pair, then up-pair" without a hard divider, which would
     // contradict them being one reading.
     private static let dualChipGap: CGFloat = 7
