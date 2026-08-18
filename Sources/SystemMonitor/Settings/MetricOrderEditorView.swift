@@ -82,7 +82,15 @@ struct MetricOrderEditorView: View {
         .contentShape(Rectangle())
         .focusable()
         .focused($focusedMetric, equals: metric)
-        .onTapGesture { focusedMetric = metric }
+        // `.simultaneousGesture` rather than `.onTapGesture`: a plain tap
+        // gesture claims the mouse-down exclusively, which wins it before
+        // List's own click-and-drag reorder (`.onMove`) gets a chance to
+        // start — the same failure mode DragHandle's doc comment describes
+        // for the abandoned `.onDrag` approach, just reintroduced here by
+        // the tap-to-focus gesture instead. Simultaneous lets both fire:
+        // a quick click still focuses the row, a click-and-hold still
+        // drags it.
+        .simultaneousGesture(TapGesture().onEnded { focusedMetric = metric })
         .onKeyPress(keys: [.upArrow, .downArrow]) { press in
             guard press.modifiers.contains(.option) else { return .ignored }
             move(metric, by: press.key == .upArrow ? -1 : 1)
