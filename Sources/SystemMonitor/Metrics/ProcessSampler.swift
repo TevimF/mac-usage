@@ -10,10 +10,16 @@ import Darwin
 /// Process names are resolved only for the handful that actually make it
 /// into a top list — `proc_name` on every pid would be ~600 extra syscalls
 /// per tick for rows nobody sees.
+///
+/// The whole sampler only runs while the panel is open (see
+/// SystemMetricsEngine), so it starts cold every time — `seed()` exists to
+/// lay down the baseline that the first real reading diffs against.
 final class ProcessSampler {
     struct Result {
         var byCPU: [ProcessUsage]
         var byMemory: [ProcessUsage]
+
+        static let empty = Result(byCPU: [], byMemory: [])
     }
 
     private struct RawUsage {
@@ -28,6 +34,13 @@ final class ProcessSampler {
         mach_timebase_info(&info)
         return info
     }()
+
+    /// Records every process's accumulated CPU time as the new baseline,
+    /// discarding the reading itself. `limit: 0` does exactly the walk we
+    /// need — the ranking at the end just has nothing to return.
+    func seed() {
+        _ = sample(limit: 0)
+    }
 
     func sample(limit: Int) -> Result {
         // Excluded on purpose: this app briefly spikes its own CPU while

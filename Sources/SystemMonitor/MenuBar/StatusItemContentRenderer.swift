@@ -34,6 +34,55 @@ enum StatusItemContentRenderer {
     private static let gap: CGFloat = 4
     private static let chipGap: CGFloat = 3
 
+    /// Everything `render` would draw, flattened into a string. Equal keys
+    /// mean an identical bitmap, so the caller can skip the redraw — most
+    /// ticks don't move a single displayed digit (the values are rounded to
+    /// whole percents and one decimal), and rebuilding the NSImage anyway
+    /// meant CoreGraphics work every interval for a picture nobody could
+    /// tell apart.
+    ///
+    /// Derived from the same helpers the drawing uses — resolved symbol
+    /// names, formatted strings and final tint colors — so a change in any
+    /// of them shows up here without a second copy of the rules to keep in
+    /// sync. The sparkline is the one case that legitimately changes every
+    /// tick: its whole history is part of the picture.
+    static func renderKey(metrics: [MetricKind], sample: MetricSample, style: IconStyle, accent: NSColor, colorMode: IconColorMode, isDark: Bool) -> String {
+        let available = metrics.filter { $0.isAvailable }
+        guard let first = available.first else { return "blank" }
+
+        let textColor = foregroundColor(isDark: isDark, isCritical: sample.isCritical)
+        var parts: [String] = [style.rawValue, colorMode.rawValue, colorKey(textColor)]
+
+        for metric in available {
+            let tint = iconTintColor(metric: metric, sample: sample, accent: accent, base: textColor, colorMode: colorMode)
+            parts.append(metric.rawValue)
+            parts.append(MetricIconLibrary.symbolName(for: metric, sample: sample))
+            parts.append(colorKey(tint))
+            if metric.isDualValue {
+                let (down, up) = dualValues(for: metric, sample: sample)
+                parts.append(Formatting.mbps(down))
+                parts.append(Formatting.mbps(up))
+            } else {
+                parts.append(valueString(for: metric, sample: sample))
+            }
+        }
+
+        if available.count == 1, !first.isDualValue, style != .numeric, first == .cpu, sample.cpuHistory.count >= 2 {
+            parts.append(colorKey(accent))
+            parts.append(sample.cpuHistory.map { String(format: "%.1f", $0) }.joined(separator: ","))
+        }
+
+        return parts.joined(separator: "|")
+    }
+
+    /// sRGB components rounded to three decimals — enough to tell the
+    /// palette's colors and every blend step of `valueTint` apart, without
+    /// letting float noise invent differences.
+    private static func colorKey(_ color: NSColor) -> String {
+        guard let srgb = color.usingColorSpace(.sRGB) else { return color.description }
+        return String(format: "%.3f,%.3f,%.3f,%.3f", srgb.redComponent, srgb.greenComponent, srgb.blueComponent, srgb.alphaComponent)
+    }
+
     /// `metrics` is the top slice of `AppSettings.metricOrder` that fits in
     /// the bar (today, the first two) — this renders whatever it's given as
     /// one combined status item, it doesn't decide how many that should be.
@@ -242,7 +291,7 @@ enum StatusItemContentRenderer {
     /// Critical state (CPU stuck above 90%) overrides every mode with red —
     /// an alert should be unmissable, not just the one metric that tripped
     /// it. Below that, the three color modes diverge.
-    private static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor, colorMode: IconColorMode) -> NSColor {
+    static func iconTintColor(metric: MetricKind, sample: MetricSample, accent: NSColor, base: NSColor, colorMode: IconColorMode) -> NSColor {
         guard !sample.isCritical else { return criticalColor }
 
         switch colorMode {

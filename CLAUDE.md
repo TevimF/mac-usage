@@ -29,8 +29,32 @@ For local iteration without repackaging:
 swift build && .build/debug/SystemMonitor
 ```
 
-No test target exists in `Package.swift` — there is no `swift test` command
-to run.
+Tests:
+
+```bash
+swift test
+```
+
+The test target depends on the executable target directly (testing an
+executable works on macOS), so there's no separate library to keep in sync.
+It covers the pure logic where a mistake is silent rather than loud:
+`CriticalTracker`, `DiskSampler.parse`, `Formatting`, and
+`StatusItemContentRenderer.renderKey`.
+
+The README's images are drawn by `ReadmeAssetTests` with the app's own
+rendering code — the real `StatusItemContentRenderer`, `MetricIconLibrary`
+and `PanelView` — so they can't drift into being a mockup of something the
+app no longer does. That test skips unless you ask for it:
+
+```bash
+README_ASSETS_DIR=Docs swift test --filter ReadmeAssetTests
+```
+
+It draws from a fixed sample rather than this machine's readings, which
+keeps regenerated images identical and keeps the author's running apps out
+of the process list. The panel render needs the engine held still, hence
+`SystemMetricsEngine.freezeForTesting` — a `#if DEBUG` seam that does not
+exist in the release build.
 
 There is no `.xcodeproj`; it's a plain Swift Package (`swift-tools-version:5.9`,
 macOS 14+ minimum, Liquid Glass panel material needs macOS 26).
@@ -47,6 +71,32 @@ overlapping ticks can't race on the samplers' internal mutable state
 ever run on that queue — anything that wants an immediate re-sample hops
 there (`timerQueue.async`) or reschedules the timer with
 `fireImmediately: true`; never call it from the main thread.
+
+**Process sampling only runs while the panel is open.** It costs one
+`proc_pidinfo` per live PID (~600 syscalls a tick) and feeds nothing but the
+panel's top-consumers list. The sampler therefore starts cold every time the
+panel opens: `SystemMetricsEngine` calls `ProcessSampler.seed()` to lay down
+a baseline, and the tick that immediately follows reports
+`processesPending` instead of a reading, because its delta would span
+milliseconds and divide into percentages in the thousands. The panel shows
+`ProcessListPlaceholderView` for that one interval. Don't "fix" the empty
+first reading by sampling while closed — that's the cost this avoids.
+
+**The status item only redraws when the picture changes.**
+`StatusItemContentRenderer.renderKey` flattens everything the drawing
+depends on (resolved symbol names, formatted strings, final tint colors,
+appearance, and the sparkline history when one is drawn) into a string;
+`MenuBarController` skips the redraw when it matches the last one. Anything
+new that affects the drawn image must be added to the key in the same
+commit, or the bar will freeze on a stale image. The key is built from the
+same helpers the drawing uses, so keep it that way rather than
+re-deriving the rules.
+
+**Critical state is measured in seconds, not ticks.** `CriticalTracker`
+(default: CPU ≥ 90% sustained for 10s) is fed the wall-clock time, so the
+alert trips at the same moment whether sampling is at 1s, 2s or 5s. The
+previous tick-counting version tripped after 6s with the panel open and 15s
+with it closed.
 
 **One metrics status item, fed by a reorderable metric list.**
 `AppSettings.metricOrder` holds every available `MetricKind` in priority

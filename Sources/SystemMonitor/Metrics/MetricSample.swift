@@ -49,6 +49,10 @@ struct MetricSample: Equatable {
     // Processes
     var topProcesses: [ProcessUsage] = []
     var topMemoryProcesses: [ProcessUsage] = []
+    /// The panel just opened and the process baseline was seeded this tick,
+    /// so there's no reading yet — the list shows a placeholder rather than
+    /// collapsing to nothing and pushing the panel's height around.
+    var processesPending: Bool = false
 
     // Derived
     var isCritical: Bool = false

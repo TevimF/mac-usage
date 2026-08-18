@@ -40,13 +40,16 @@ enum MetricIconLibrary {
         return base.withSymbolConfiguration(config) ?? base
     }
 
+    /// The symbol a metric shows for a given reading — battery is the one
+    /// that changes with its own value. Kept separate from `image(for:)`
+    /// so the status item's render key can ask which icon *would* be drawn
+    /// without building the image (see StatusItemContentRenderer.renderKey).
+    static func symbolName(for metric: MetricKind, sample: MetricSample) -> String {
+        guard metric == .battery else { return symbolName(for: metric) }
+        return batterySymbolName(percent: sample.batteryPercent, isCharging: sample.isCharging)
+    }
+
     static func image(for metric: MetricKind, pointSize: CGFloat, sample: MetricSample) -> NSImage {
-        let name: String
-        if metric == .battery {
-            name = batterySymbolName(percent: sample.batteryPercent, isCharging: sample.isCharging)
-        } else {
-            name = symbolName(for: metric)
-        }
-        return image(named: name, pointSize: pointSize)
+        image(named: symbolName(for: metric, sample: sample), pointSize: pointSize)
     }
 }

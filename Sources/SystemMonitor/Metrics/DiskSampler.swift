@@ -30,16 +30,37 @@ final class DiskSampler {
         // a Swift/C struct with natural off_t alignment would read every
         // field 4 bytes off. Reading fixed offsets from raw bytes sidesteps
         // that mismatch entirely.
-        var buffer = [UInt8](repeating: 0, count: 32)
+        var buffer = [UInt8](repeating: 0, count: Self.bufferSize)
         let result = buffer.withUnsafeMutableBytes { ptr -> Int32 in
             getattrlist(volumePath, &attrList, ptr.baseAddress, ptr.count, 0)
         }
-        guard result == 0 else {
+        guard result == 0, let parsed = Self.parse(attributeBuffer: buffer) else {
             return fallback()
         }
+        return parsed
+    }
 
-        let total = buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int64.self) }
-        let used = buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 20, as: Int64.self) }
+    static let bufferSize = 32
+
+    /// Reads the two values out of the kernel's reply.
+    ///
+    /// Split out from the syscall so the offsets can be checked against a
+    /// buffer we built ourselves: getting them wrong doesn't crash, it just
+    /// reports a different volume's number — or a plausible-looking total
+    /// that happens to be someone else's. Returns nil for a reply too short
+    /// to hold the fields, or for a nonsense total, so the caller can fall
+    /// back to statfs instead of showing zeros.
+    static func parse(attributeBuffer buffer: [UInt8]) -> Result? {
+        // 4-byte length, then ATTR_VOL_SIZE, ATTR_VOL_SPACEAVAIL and
+        // ATTR_VOL_SPACEUSED as 8-byte off_t values, in the order the
+        // attrlist requested them.
+        let totalOffset = 4
+        let usedOffset = 20
+        guard buffer.count >= usedOffset + 8 else { return nil }
+
+        let total = buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: totalOffset, as: Int64.self) }
+        let used = buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: usedOffset, as: Int64.self) }
+        guard total > 0, used >= 0, used <= total else { return nil }
 
         return Result(usedGB: Double(used) / 1e9, totalGB: Double(total) / 1e9)
     }

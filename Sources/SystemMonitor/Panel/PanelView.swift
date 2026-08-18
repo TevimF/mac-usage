@@ -75,7 +75,12 @@ struct PanelView: View {
         case .grid:
             MetricsGridView(sample: sample, isCritical: isCritical)
         case .processes:
-            if settings.showProcesses && !sample.topProcesses.isEmpty {
+            if settings.showProcesses && sample.processesPending {
+                ProcessListPlaceholderView(
+                    title: L10n.t("Maiores consumos", "Top consumers"),
+                    unit: "CPU"
+                )
+            } else if settings.showProcesses && !sample.topProcesses.isEmpty {
                 ProcessListView(
                     title: L10n.t("Maiores consumos", "Top consumers"),
                     unit: "CPU",
