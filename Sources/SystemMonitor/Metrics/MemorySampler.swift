@@ -3,6 +3,16 @@ import Darwin
 
 /// Physical memory via host_statistics64 (VM stats) and swap via the
 /// vm.swapusage sysctl — same sources Activity Monitor uses internally.
+///
+/// RAM figures (total/used/active/wired/compressed) are reported in GiB,
+/// not decimal GB, unlike every other size in this app. Apple's spec sheet
+/// and "Sobre este Mac" both label a machine's physical memory using GiB
+/// magnitude while writing "GB" — a 16 GiB machine is sold as "16GB". A
+/// literal bytes/1e9 conversion (the convention Finder/diskutil use for
+/// storage, and what disk/swap use here) turns that same 16 GiB machine
+/// into "17,18 GB", which reads as a bug against the number on the spec
+/// sheet, not a rounding convention. Storage keeps decimal GB below — disk
+/// capacities really are decimal on macOS, so it still needs to.
 final class MemorySampler {
     struct Result {
         var usedGB: Double
@@ -21,6 +31,8 @@ final class MemorySampler {
         return size
     }()
 
+    private static let bytesPerGiB = 1_073_741_824.0
+
     func sample() -> Result {
         var stats = vm_statistics64()
         var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
@@ -31,7 +43,7 @@ final class MemorySampler {
             }
         }
 
-        let totalGB = Double(totalPhysicalBytes) / 1e9
+        let totalGB = Double(totalPhysicalBytes) / Self.bytesPerGiB
         guard kr == KERN_SUCCESS else {
             return Result(usedGB: 0, totalGB: totalGB, activeGB: 0, wiredGB: 0, compressedGB: 0, swapUsedGB: 0, swapTotalGB: 0)
         }
@@ -48,11 +60,14 @@ final class MemorySampler {
         let (swapUsed, swapTotal) = Self.readSwapUsage()
 
         return Result(
-            usedGB: used / 1e9,
+            usedGB: used / Self.bytesPerGiB,
             totalGB: totalGB,
-            activeGB: active / 1e9,
-            wiredGB: wired / 1e9,
-            compressedGB: compressed / 1e9,
+            activeGB: active / Self.bytesPerGiB,
+            wiredGB: wired / Self.bytesPerGiB,
+            compressedGB: compressed / Self.bytesPerGiB,
+            // Swap keeps decimal GB: it's a dynamic pool macOS manages on
+            // its own, not a number Apple prints on a spec sheet for
+            // someone to compare this reading against.
             swapUsedGB: swapUsed / 1e9,
             swapTotalGB: swapTotal / 1e9
         )

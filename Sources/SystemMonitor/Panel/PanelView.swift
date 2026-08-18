@@ -107,6 +107,11 @@ struct PanelView: View {
     /// same "% of the whole" shape as cpuPercent, so the two columns read
     /// side by side without one needing an absolute-size mental model the
     /// other doesn't.
+    ///
+    /// `* 1024` converts memoryTotalGB to MB correctly only because
+    /// MemorySampler reports RAM in GiB — usage.memoryMB is already true
+    /// MiB (ProcessSampler divides resident_size by 1_048_576), so both
+    /// sides of this division share the same binary base.
     private func ramPercent(for usage: ProcessUsage) -> Double {
         guard sample.memoryTotalGB > 0 else { return 0 }
         return usage.memoryMB / (sample.memoryTotalGB * 1024) * 100
