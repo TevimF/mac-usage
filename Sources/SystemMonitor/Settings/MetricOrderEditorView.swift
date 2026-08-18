@@ -9,6 +9,10 @@ struct MetricOrderEditorView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var engine = SystemMetricsEngine.shared
     @FocusState private var focusedMetric: MetricKind?
+    // The row currently being dragged over, so it can highlight as the
+    // drop target — otherwise a drag in progress gives no feedback at all
+    // about where the row would land.
+    @State private var dropTarget: MetricKind?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -19,19 +23,20 @@ struct MetricOrderEditorView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
 
-            List {
+            // A plain VStack, not `List` — `List`'s own `.onMove` looked
+            // right in isolation, but this editor lives inside
+            // `Form { Section { ... } }`, and on macOS `Form`'s
+            // `.formStyle(.grouped)` is itself a List-like table view.
+            // Nesting a reorderable List inside that outer one means two
+            // AppKit drag/selection machineries compete for the same
+            // mouse-down; the outer one wins, so `.onMove` never fires.
+            // `.draggable`/`.dropDestination` run on plain rows instead,
+            // with no inner List to lose that contest.
+            VStack(spacing: 4) {
                 ForEach(settings.metricOrder) { metric in
                     row(for: metric)
-                        .listRowInsets(EdgeInsets(top: 2, leading: 0, bottom: 2, trailing: 0))
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                }
-                .onMove { indices, destination in
-                    settings.metricOrder.move(fromOffsets: indices, toOffset: destination)
                 }
             }
-            .listStyle(.plain)
-            .scrollDisabled(true)
 
             SettingsHelp(L10n.t(
                 "Arraste uma linha pra mudar a ordem, ou selecione e use ⌥↑ / ⌥↓. As primeiras \(settings.barMetricCount == 1 ? "1 fica" : "2 ficam") na barra, numa cápsula só; o resto só aparece no painel.",
@@ -77,24 +82,37 @@ struct MetricOrderEditorView: View {
         .padding(.horizontal, 11)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(focusedMetric == metric ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.05))
+                .fill(dropTarget == metric ? Color.accentColor.opacity(0.22)
+                      : focusedMetric == metric ? Color.accentColor.opacity(0.14)
+                      : Color.primary.opacity(0.05))
         )
         .contentShape(Rectangle())
         .focusable()
         .focused($focusedMetric, equals: metric)
         // `.simultaneousGesture` rather than `.onTapGesture`: a plain tap
-        // gesture claims the mouse-down exclusively, which wins it before
-        // List's own click-and-drag reorder (`.onMove`) gets a chance to
-        // start — the same failure mode DragHandle's doc comment describes
-        // for the abandoned `.onDrag` approach, just reintroduced here by
-        // the tap-to-focus gesture instead. Simultaneous lets both fire:
-        // a quick click still focuses the row, a click-and-hold still
-        // drags it.
+        // gesture would otherwise claim the mouse-down exclusively, ahead
+        // of `.draggable`'s own recognizer, so a click-and-hold could never
+        // turn into a drag.
         .simultaneousGesture(TapGesture().onEnded { focusedMetric = metric })
         .onKeyPress(keys: [.upArrow, .downArrow]) { press in
             guard press.modifiers.contains(.option) else { return .ignored }
             move(metric, by: press.key == .upArrow ? -1 : 1)
             return .handled
+        }
+        .draggable(metric)
+        .dropDestination(for: MetricKind.self) { dropped, _ in
+            defer { dropTarget = nil }
+            guard let dragged = dropped.first, dragged != metric,
+                  let from = settings.metricOrder.firstIndex(of: dragged),
+                  let to = settings.metricOrder.firstIndex(of: metric)
+            else { return false }
+            settings.metricOrder.move(
+                fromOffsets: IndexSet(integer: from),
+                toOffset: to > from ? to + 1 : to
+            )
+            return true
+        } isTargeted: { isTargeted in
+            dropTarget = isTargeted ? metric : (dropTarget == metric ? nil : dropTarget)
         }
     }
 

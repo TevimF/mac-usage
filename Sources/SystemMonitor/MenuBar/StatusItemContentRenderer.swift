@@ -33,6 +33,15 @@ enum StatusItemContentRenderer {
     private static let sidePadding: CGFloat = 0
     private static let gap: CGFloat = 4
     private static let chipGap: CGFloat = 3
+    // Wider than chipGap on purpose: chipGap is icon-to-its-own-value
+    // spacing (tight, the two visually belong together). Down/up used
+    // that same 3pt between one chip's value and the next chip's icon,
+    // so "↓ 0,1 ↑ 2,4" read as four evenly-spaced tokens with no cue for
+    // which arrow paired with which number. This sits between the two
+    // chips of one dual-value metric instead — loose enough to read as
+    // "down-pair, then up-pair" without a hard divider, which would
+    // contradict them being one reading.
+    private static let dualChipGap: CGFloat = 7
 
     /// Everything `render` would draw, flattened into a string. Equal keys
     /// mean an identical bitmap, so the caller can skip the redraw — most
@@ -198,7 +207,7 @@ enum StatusItemContentRenderer {
         for (groupIndex, group) in groups.enumerated() {
             for (chipIndex, chip) in group.enumerated() {
                 width += chipWidth(chip)
-                if chipIndex < group.count - 1 { width += chipGap }
+                if chipIndex < group.count - 1 { width += dualChipGap }
             }
             if groupIndex < groups.count - 1 { width += gap + dividerWidth + gap }
         }
@@ -218,7 +227,7 @@ enum StatusItemContentRenderer {
                     let textY = (rect.height - textSize.height) / 2
                     chip.text.draw(at: CGPoint(x: x + chip.textSlotWidth - textSize.width, y: textY), withAttributes: textAttrs)
                     x += chip.textSlotWidth
-                    if chipIndex < group.count - 1 { x += chipGap }
+                    if chipIndex < group.count - 1 { x += dualChipGap }
                 }
                 if groupIndex < groups.count - 1 {
                     x += gap
