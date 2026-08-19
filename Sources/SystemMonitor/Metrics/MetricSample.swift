@@ -63,6 +63,10 @@ struct MetricSample: Equatable {
 
     var memoryFraction: Double { memoryTotalGB > 0 ? memoryUsedGB / memoryTotalGB : 0 }
     var diskFraction: Double { diskTotalGB > 0 ? diskUsedGB / diskTotalGB : 0 }
+
+    /// `.serious`/`.critical` are the two states where macOS is actually
+    /// throttling CPU/GPU to shed heat, not just running warm.
+    var isThermalThrottling: Bool { thermalState == .serious || thermalState == .critical }
 }
 
 enum ThermalState: String, Equatable {

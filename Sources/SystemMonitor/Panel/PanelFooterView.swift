@@ -2,10 +2,12 @@ import AppKit
 import SwiftUI
 
 struct PanelFooterView: View {
-    var isCritical: Bool
+    var alertLabel: String?
     var onOpenActivityMonitor: () -> Void
     var onOpenSettings: () -> Void
     var onOpenAbout: () -> Void
+
+    private var isCritical: Bool { alertLabel != nil }
 
     var body: some View {
         VStack(spacing: 9) {

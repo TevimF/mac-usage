@@ -32,6 +32,18 @@ enum Formatting {
         oneDecimalString(value)
     }
 
+    /// Throughput with its unit: KB/s under 1 MB/s (no decimals — "512
+    /// KB/s" doesn't need one), MB/s at or above it. `value` is in MB/s.
+    /// For contexts with room to spell out the unit (panel, tooltip,
+    /// settings preview) — the fixed-width menu bar chip stays on `mbps`
+    /// alone, since its slot width is reserved for a decimal MB reading.
+    static func throughput(_ value: Double) -> String {
+        if value < 1 {
+            return "\(Int((value * 1000).rounded())) KB/s"
+        }
+        return "\(oneDecimalString(value)) MB/s"
+    }
+
     /// Resident memory: MB below a gigabyte, GB above, so a process list
     /// doesn't turn into a column of "0,4 GB".
     static func memory(mb: Double) -> String {

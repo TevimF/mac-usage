@@ -2,9 +2,13 @@ import SwiftUI
 
 struct PanelHeaderView: View {
     var title: String
-    var isCritical: Bool
+    /// nil means no alert; otherwise the text to show in place of the
+    /// refresh interval (CPU sustained ≥90%, thermal throttling, or both).
+    var alertLabel: String?
     var interval: String
     var onOpenSettings: () -> Void
+
+    private var isCritical: Bool { alertLabel != nil }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -13,8 +17,8 @@ struct PanelHeaderView: View {
                 .font(.system(size: 12.5, weight: .semibold))
                 .lineLimit(1)
             Spacer(minLength: 6)
-            if isCritical {
-                Text(L10n.t("Pressão alta", "High pressure"))
+            if let alertLabel {
+                Text(alertLabel)
                     .font(.system(size: 10.5, weight: .semibold))
                     .foregroundStyle(DesignColor.critical)
             } else {

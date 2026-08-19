@@ -150,7 +150,7 @@ struct MetricOrderEditorView: View {
             return "\(Formatting.gb(sample.swapUsedGB)) / \(Formatting.gb(sample.swapTotalGB)) GB"
         case .disk: return "\(Formatting.gb(sample.diskUsedGB)) / \(Formatting.gb(sample.diskTotalGB)) GB"
         case .diskIO: return "↓ \(Formatting.mbps(sample.diskReadRate)) · ↑ \(Formatting.mbps(sample.diskWriteRate)) MB/s"
-        case .network: return "↓ \(Formatting.mbps(sample.networkDownRate)) · ↑ \(Formatting.mbps(sample.networkUpRate)) MB/s"
+        case .network: return "↓ \(Formatting.throughput(sample.networkDownRate)) · ↑ \(Formatting.throughput(sample.networkUpRate))"
         case .thermal: return sample.thermalState.label
         case .battery: return sample.batteryPercent.map { "\($0)%" } ?? "—"
         case .gpu: return ""

@@ -31,9 +31,9 @@ struct MetricsGridView: View {
             }
             MetricTile(
                 title: L10n.t("Rede", "Network"),
-                value: "↓ \(Formatting.mbps(sample.networkDownRate)) MB/s",
+                value: "↓ \(Formatting.throughput(sample.networkDownRate))",
                 valueColor: DesignColor.networkHealthy,
-                detail: "↑ \(Formatting.mbps(sample.networkUpRate)) MB/s"
+                detail: "↑ \(Formatting.throughput(sample.networkUpRate))"
             )
             MetricTile(
                 title: "Swap",
@@ -48,8 +48,8 @@ struct MetricsGridView: View {
                 // a third-party app.
                 value: sample.thermalState.label.capitalized,
                 valueColor: thermalColor,
-                detail: " ",
-                highlighted: sample.thermalState == .serious || sample.thermalState == .critical
+                detail: sample.isThermalThrottling ? L10n.t("⚠️ desempenho reduzido", "⚠️ throttling active") : " ",
+                highlighted: sample.isThermalThrottling
             )
             if let percent = sample.batteryPercent {
                 MetricTile(

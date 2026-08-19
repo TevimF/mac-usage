@@ -59,7 +59,7 @@ enum StatusItemTooltip {
         case .network:
             return [
                 L10n.t("Rede", "Network"),
-                "↓ \(Formatting.mbps(sample.networkDownRate)) MB/s · ↑ \(Formatting.mbps(sample.networkUpRate)) MB/s"
+                "↓ \(Formatting.throughput(sample.networkDownRate)) · ↑ \(Formatting.throughput(sample.networkUpRate))"
             ]
 
         case .thermal:
