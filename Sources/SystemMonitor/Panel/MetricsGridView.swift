@@ -43,12 +43,9 @@ struct MetricsGridView: View {
             )
             MetricTile(
                 title: L10n.t("Térmico", "Thermal"),
-                // No temperature reading on purpose (needs a private
-                // entitlement) — the qualitative state is all macOS gives
-                // a third-party app.
-                value: sample.thermalState.label.capitalized,
+                value: thermalValue,
                 valueColor: thermalColor,
-                detail: sample.isThermalThrottling ? L10n.t("⚠️ desempenho reduzido", "⚠️ throttling active") : " ",
+                detail: thermalDetail,
                 highlighted: sample.isThermalThrottling
             )
             if let percent = sample.batteryPercent {
@@ -105,6 +102,24 @@ struct MetricsGridView: View {
         if sample.isCharging { return L10n.t("carregando", "charging") }
         guard let minutes = sample.batteryTimeRemainingMinutes, minutes > 0 else { return " " }
         return Formatting.duration(minutes: minutes)
+    }
+
+    /// The die temperature leads when this machine exposes it, with the
+    /// qualitative state demoted to the detail line; without a sensor the
+    /// state is all there is, so it takes the value slot as before.
+    private var thermalValue: String {
+        guard let celsius = sample.cpuTemperatureCelsius else {
+            return sample.thermalState.label.capitalized
+        }
+        return Formatting.celsius(celsius)
+    }
+
+    private var thermalDetail: String {
+        if sample.isThermalThrottling {
+            return L10n.t("⚠️ desempenho reduzido", "⚠️ throttling active")
+        }
+        guard sample.cpuTemperatureCelsius != nil else { return " " }
+        return sample.thermalState.label.capitalized
     }
 
     private var thermalColor: Color {

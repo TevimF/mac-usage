@@ -257,7 +257,11 @@ enum StatusItemContentRenderer {
         // Throughput has no ceiling; "88,8" covers the everyday range and a
         // rare >100 MB/s burst just widens the item until it passes.
         case .network, .diskIO: return "88,8"
-        case .thermal, .gpu: return ""
+        // Three digits plus the unit covers every plausible reading; when
+        // there's no sensor the thermal item is icon-only and reserves
+        // nothing.
+        case .thermal: return "100°C"
+        case .gpu: return ""
         }
     }
 
@@ -283,7 +287,7 @@ enum StatusItemContentRenderer {
             guard sample.swapTotalGB > 0 else { return "0%" }
             return "\(Formatting.percent(sample.swapUsedGB / sample.swapTotalGB * 100))%"
         case .disk: return "\(Formatting.percent(sample.diskFraction * 100))%"
-        case .thermal: return ""
+        case .thermal: return sample.cpuTemperatureCelsius.map(Formatting.celsius) ?? ""
         case .battery: return sample.batteryPercent.map { "\($0)%" } ?? "—"
         case .network, .diskIO: return ""
         case .gpu: return ""

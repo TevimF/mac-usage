@@ -63,7 +63,11 @@ enum StatusItemTooltip {
             ]
 
         case .thermal:
-            return ["\(L10n.t("Térmico", "Thermal")) — \(sample.thermalState.label)"]
+            var line = "\(L10n.t("Térmico", "Thermal")) — \(sample.thermalState.label)"
+            if let celsius = sample.cpuTemperatureCelsius {
+                line += " · \(Formatting.celsius(celsius))"
+            }
+            return [line]
 
         case .battery:
             guard let percent = sample.batteryPercent else {

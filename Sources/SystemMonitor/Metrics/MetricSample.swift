@@ -40,6 +40,9 @@ struct MetricSample: Equatable {
 
     // Thermal
     var thermalState: ThermalState = .nominal
+    /// Hottest CPU die reading in °C, nil on machines that don't expose
+    /// the HID temperature sensors.
+    var cpuTemperatureCelsius: Double?
 
     // Battery
     var batteryPercent: Int?

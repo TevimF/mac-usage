@@ -144,7 +144,8 @@ final class SystemMetricsEngine: ObservableObject {
         next.networkDownRate = network.downRate
         next.networkUpRate = network.upRate
 
-        next.thermalState = thermal
+        next.thermalState = thermal.state
+        next.cpuTemperatureCelsius = thermal.celsius
 
         next.batteryPercent = battery.percent
         next.batteryTimeRemainingMinutes = battery.minutesRemaining

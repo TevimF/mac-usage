@@ -28,6 +28,12 @@ enum Formatting {
         oneDecimalString(value)
     }
 
+    /// Whole degrees — the sensor jitters by a few tenths every tick and a
+    /// decimal there just makes the tile flicker.
+    static func celsius(_ value: Double) -> String {
+        "\(Int(value.rounded()))°C"
+    }
+
     static func mbps(_ value: Double) -> String {
         oneDecimalString(value)
     }
