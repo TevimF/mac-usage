@@ -77,7 +77,7 @@ enum ThermalState: String, Equatable {
 
     var label: String {
         switch self {
-        case .nominal: return "nominal"
+        case .nominal: return L10n.t("normal", "normal")
         case .fair: return L10n.t("elevado", "elevated")
         case .serious: return L10n.t("alto", "high")
         case .critical: return "throttling"
